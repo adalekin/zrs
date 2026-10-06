@@ -1,0 +1,191 @@
+{
+  "nav": {
+    "requests": "Requests",
+    "reference": "Reference lists",
+    "signOut": "Sign out"
+  },
+  "role": {
+    "requester": "Employee",
+    "moderator": "Moderator",
+    "finance_director": "Finance director",
+    "payer": "Payer"
+  },
+  "status": {
+    "new": "New",
+    "returned": "Returned",
+    "escalated": "Moderated",
+    "approved": "Approved",
+    "paid": "Paid",
+    "rejected": "Rejected"
+  },
+  "field": {
+    "id": "Number",
+    "status": "Status",
+    "operationType": "Operation type",
+    "moderator": "Moderator",
+    "situation": "Situation",
+    "situationHint": "what the money is needed for",
+    "solution": "Solution",
+    "solutionHint": "how much to transfer, where and by what means",
+    "amount": "Amount",
+    "currency": "Currency",
+    "paymentPeriod": "Payment period",
+    "paymentForm": "Payment form",
+    "priority": "Priority",
+    "deadline": "Deadline",
+    "attachments": "Payment documents",
+    "author": "Author",
+    "payer": "Payer",
+    "paidOn": "Payment date",
+    "createdAt": "Created",
+    "request": "Request",
+    "submittedAt": "Submitted"
+  },
+  "action": {
+    "approveNew": "Approve",
+    "approveEscalated": "Approve",
+    "escalate": "Pass to the finance director",
+    "return": "Return to the author",
+    "reject": "Reject",
+    "resubmit": "Submit again",
+    "cancel": "Cancel the request",
+    "pay": "Mark as paid"
+  },
+  "requests": {
+    "title": "Requests",
+    "create": "New request",
+    "allStatuses": "All statuses",
+    "awaitingMe": "Waiting for me",
+    "empty": "No requests yet",
+    "page": "Page {page} of {pages}",
+    "previous": "Previous",
+    "next": "Next",
+    "all": "All",
+    "emptyHint": "Submit the first request: the moderator will see it in their queue.",
+    "queueEmpty": "The queue is empty",
+    "queueEmptyHint": "Requests that wait for your action will appear here.",
+    "noneInStatus": "No requests in status \"{status}\""
+  },
+  "request": {
+    "title": "Request {id}",
+    "createTitle": "New request",
+    "editTitle": "Editing request {id}",
+    "edit": "Edit",
+    "submit": "Submit the request",
+    "save": "Save",
+    "notChosen": "Not chosen",
+    "notFound": "Request not found.",
+    "noAttachments": "No documents",
+    "fileLimit": "File size up to {limit}",
+    "removeFile": "Remove",
+    "journal": "Journal",
+    "comment": "Comment",
+    "commentOptional": "Comment (optional)",
+    "addComment": "Add a comment",
+    "statusConflict": "The action is not available: the request is already in status \"{status}\"",
+    "dismiss": "Cancel",
+    "clear": "Clear",
+    "open": "Open",
+    "created": "Request {id} is submitted. Moderator: {moderator}",
+    "filesFailed": "Request {id} is submitted, but these files did not upload: {files}. Add them again here",
+    "dropFiles": "Drop files here or choose them",
+    "namedFileTooLarge": "{name}: the file exceeds the limit of {limit}",
+    "period": {
+      "once": "one-time",
+      "monthly": "monthly",
+      "yearly": "yearly"
+    },
+    "blocked": {
+      "title": "A request cannot be submitted yet",
+      "operationType": "The \"Operation types\" list is empty. The finance director fills it in.",
+      "priority": "The \"Priorities\" list is empty. The finance director fills it in.",
+      "moderator": "There is nobody to choose as the moderator. A moderator appears in the list after their first sign-in."
+    },
+    "chooseCurrency": "Choose the currency",
+    "revert": "Undo the changes",
+    "returnedBy": "{name}, the reason for the return:",
+    "turn": {
+      "new": "Waits for your decision",
+      "escalated": "Waits for your decision",
+      "approved": "Waits for payment",
+      "returned": "The request was returned to you"
+    },
+    "at": {
+      "author": "Being corrected by the author: {name}",
+      "moderator": "With the moderator: {name}",
+      "finance_director": "With the finance director",
+      "payer": "Approved, waits for payment"
+    },
+    "step": {
+      "author": "Author",
+      "moderator": "Moderator",
+      "finance_director": "Finance director",
+      "payer": "Payment"
+    },
+    "paidBy": "{date}. Paid by {name}",
+    "fixHint": "Correct the request and send it again.",
+    "sending": "Sending…",
+    "uploading": "Uploading files: {done} of {total}"
+  },
+  "reference": {
+    "title": "Reference lists",
+    "operation_type": "Operation types",
+    "payment_form": "Payment forms",
+    "priority": "Priorities",
+    "name": "Name",
+    "add": "Add",
+    "rename": "Rename",
+    "save": "Save",
+    "dismiss": "Cancel",
+    "active": "Active",
+    "empty": "No values"
+  },
+  "access": {
+    "title": "No access",
+    "noRole": "None of your roles grants access to this service. Ask the person who assigns roles in your organisation.",
+    "financeDirectorOnly": "Reference lists are managed by the finance director."
+  },
+  "common": {
+    "loading": "Loading…",
+    "failed": "The action failed",
+    "unavailable": "The service is temporarily unavailable. Try again later.",
+    "close": "Close"
+  },
+  "error": {
+    "field": {
+      "missing": "Fill in this field",
+      "required": "Fill in this field",
+      "string_type": "Fill in this field",
+      "int_type": "Fill in this field",
+      "decimal_type": "Fill in this field",
+      "string_too_short": "Fill in this field",
+      "string_too_long": "The text is too long",
+      "greater_than": "The value must be greater than zero",
+      "decimal_parsing": "Enter a number",
+      "decimal_max_places": "No more than four decimal places",
+      "decimal_max_digits": "The number is too large",
+      "int_parsing": "Choose a value from the list",
+      "date_parsing": "Enter a date",
+      "date_from_datetime_parsing": "Enter a date",
+      "currency_not_allowed": "This currency is not in the list of currencies",
+      "moderator_is_author": "You cannot choose yourself as the moderator",
+      "not_a_moderator": "This person does not have the moderator role",
+      "reference_list_empty": "The reference list is empty. Ask the finance director to fill it",
+      "reference_item_inactive": "This value is switched off in the reference list"
+    },
+    "code": {
+      "DuplicateReferenceItem": "The list already has a value with this name",
+      "Forbidden": "This action is not available to you",
+      "NotFound": "Request not found",
+      "IdentityProviderUnavailable": "The sign-in provider is unavailable. Try again later",
+      "ServiceUnavailable": "The service is temporarily unavailable. Try again later"
+    }
+  },
+  "holder": {
+    "you": "waits for you",
+    "author": "with the author: {name}",
+    "moderator": "with the moderator: {name}",
+    "finance_director": "with the finance director",
+    "payer": "waits for payment"
+  }
+}

@@ -1,0 +1,9 @@
+{
+  // Type-checks the tests with the settings of the server project.
+  "extends": "../.nuxt/tsconfig.server.json",
+  "compilerOptions": {
+    "resolveJsonModule": true,
+    "tsBuildInfoFile": "../node_modules/.cache/zrs-web/tests.tsbuildinfo"
+  },
+  "include": ["./**/*.ts", "../shared/**/*.d.ts", "../vitest.config.ts"]
+}

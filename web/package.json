@@ -1,0 +1,40 @@
+{
+  "name": "zrs-web",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@lucide/vue": "^1.52.0",
+    "@nuxtjs/i18n": "10.6.0",
+    "@sidebase/nuxt-auth": "1.4.0",
+    "@vueuse/core": "^15.0.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "h3": "^1.15.11",
+    "next-auth": "4.21.1",
+    "nuxt": "4.5.2",
+    "reka-ui": "^2.11.0",
+    "shadcn-nuxt": "2.8.2",
+    "shadcn-vue": "^2.8.2",
+    "tailwind-merge": "^3.7.0",
+    "tw-animate-css": "^1.4.0",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1",
+    "vue-sonner": "^2.0.9"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "22",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "vitest": "5.0.3",
+    "vue-tsc": "3.3.12"
+  }
+}
