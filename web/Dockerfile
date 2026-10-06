@@ -1,6 +1,10 @@
+# The Nitro output holds no native code, so one build on the builder's own platform
+# serves every target platform. Both build stages are pinned to that platform.
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.14 AS bun
+
 # Build stage: bun installs the dependencies from the lockfile, Node runs the Nuxt build.
-FROM node:22-slim AS build
-COPY --from=oven/bun:1.3.14 /usr/local/bin/bun /usr/local/bin/bun
+FROM --platform=$BUILDPLATFORM node:22-slim AS build
+COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 COPY package.json bun.lock ./
 # The postinstall script prepares Nuxt types and needs the sources; the build does it anyway.
