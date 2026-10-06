@@ -129,7 +129,7 @@ helm install zrs oci://ghcr.io/adalekin/charts/zrs --version 0.1.1 -f values.yam
 - Поды сервера становятся готовыми после того, как Job довёл схему базы до их версии.
 - `podAnnotations` и `podLabels` задаются отдельно для сервера, веб-интерфейса и Job.
 
-Пока пакеты закрыты, образы скачиваются через `imagePullSecrets`, а чарт после `helm registry login ghcr.io` с токеном на чтение пакетов.
+Образы и чарт лежат в открытых пакетах: для скачивания не нужны ни вход в реестр, ни `imagePullSecrets`.
 
 ## Разработка
 
