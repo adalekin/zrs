@@ -43,13 +43,45 @@ async def test_two_decisions_sent_at_once_end_in_exactly_one_of_them(world: Worl
     lists = await world.reference_lists()
     author = await world.sign_in("author", "requester")
     moderator = await world.sign_in("moderator", "moderator")
-    request = await world.submit(author, lists, moderator)
-    url = f"/v1/requests/{request['id']}"
 
-    cancelled, approved = await asyncio.gather(author.post(f"{url}/cancel"), moderator.post(f"{url}/approve"))
+    # Approval and rejection both start from "new" only, so whichever comes second finds
+    # the request already decided. A cancellation would not do here: the author may still
+    # cancel an approved request, and both actions would succeed one after the other.
+    # Repeated, because the order in which the two arrive is up to the scheduler.
+    for _ in range(10):
+        request = await world.submit(author, lists, moderator)
+        url = f"/v1/requests/{request['id']}"
 
-    assert sorted([cancelled.status_code, approved.status_code]) == [200, 409]
-    winner = "rejected" if cancelled.status_code == 200 else "approved"
-    body = (await author.get(url)).json()
-    assert body["status"] == winner
-    assert [entry["status"] for entry in body["journal"]] == ["new", winner]
+        approved, rejected = await asyncio.gather(moderator.post(f"{url}/approve"), moderator.post(f"{url}/reject"))
+
+        assert sorted([approved.status_code, rejected.status_code]) == [200, 409]
+        winner = "approved" if approved.status_code == 200 else "rejected"
+        loser = rejected if winner == "approved" else approved
+        assert loser.json()["status"] == winner
+        body = (await author.get(url)).json()
+        assert body["status"] == winner
+        assert [entry["status"] for entry in body["journal"]] == ["new", winner]
+
+
+async def test_a_cancellation_that_loses_to_an_approval_still_cancels(world: World) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author", "requester")
+    moderator = await world.sign_in("moderator", "moderator")
+
+    # The author may cancel until the request is paid, so both orders are valid; what
+    # must hold is that the journal tells the order the two actions were applied in.
+    for _ in range(10):
+        request = await world.submit(author, lists, moderator)
+        url = f"/v1/requests/{request['id']}"
+
+        approved, cancelled = await asyncio.gather(moderator.post(f"{url}/approve"), author.post(f"{url}/cancel"))
+
+        assert cancelled.status_code == 200
+        body = (await author.get(url)).json()
+        assert body["status"] == "rejected"
+        journal = [entry["status"] for entry in body["journal"]]
+        if approved.status_code == 200:
+            assert journal == ["new", "approved", "rejected"]
+        else:
+            assert approved.status_code == 409
+            assert journal == ["new", "rejected"]
