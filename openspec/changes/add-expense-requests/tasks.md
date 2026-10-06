@@ -83,7 +83,7 @@
 ## 13. Сборка и релиз
 
 - [x] 13.1 Написать проверочный workflow GitHub Actions из решения 18: тесты `server/` на PostgreSQL, проверка типов и тесты `web/`, `helm lint`, `openspec validate`; проверка: workflow зелёный на ветке с этим изменением
-- [ ] 13.2 Написать релизный workflow на тег `vX.Y.Z`, который публикует `zrs-server`, `zrs-web` и чарт одной версии в GitHub Container Registry; проверка: после тега `v0.1.0` команды `docker pull ghcr.io/adalekin/zrs-server:0.1.0` и `helm pull oci://ghcr.io/adalekin/charts/zrs --version 0.1.0` проходят
+- [x] 13.2 Написать релизный workflow на тег `vX.Y.Z`, который публикует `zrs-server`, `zrs-web` и чарт одной версии в GitHub Container Registry; проверка: после тега `v0.1.0` команды `docker pull ghcr.io/adalekin/zrs-server:0.1.0` и `helm pull oci://ghcr.io/adalekin/charts/zrs --version 0.1.0` проходят
 - [ ] 13.3 Описать в `README.md` адреса образов и чарта и доступ к закрытым пакетам через `imagePullSecrets`; проверка: `helm install` из реестра по командам README ставит версию `0.1.0`
 
 ## 14. Сквозные проверки

@@ -119,7 +119,7 @@ docker compose -f deploy/compose.yaml up -d
 ### Helm
 
 ```bash
-helm install zrs oci://ghcr.io/adalekin/charts/zrs --version 0.1.0 -f values.yaml
+helm install zrs oci://ghcr.io/adalekin/charts/zrs --version 0.1.1 -f values.yaml
 ```
 
 Полный пример значений лежит в `deploy/helm/zrs/ci/example-values.yaml`. Чарт ставит сервер, веб-интерфейс и Job с миграциями. PostgreSQL, хранилище и провайдера входа он не поднимает.
