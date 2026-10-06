@@ -1,0 +1,44 @@
+schema: spec-driven
+
+context: |
+  ZRS keeps an organization's expense requests from submission to payment. It is meant to be
+  published as open source, so nothing in the repository names a particular organization, and the
+  code has no branches for a particular identity provider vendor or hosting platform: such things
+  are installation settings. A vendor may be named only in the development environment and in
+  README examples. One installation serves one organization.
+
+  Write the prose of every artifact (proposal.md, design.md, tasks.md, requirement and scenario text
+  in delta specs) in Russian. Folder names, capability paths, identifiers and the OpenSpec keywords
+  (SHALL, WHEN, THEN, section headings the CLI validates) stay English. Code, comments, commit
+  messages, log and error strings are English.
+
+# Project context (optional)
+# This is shown to AI when creating artifacts.
+# Add your tech stack, conventions, style guides, domain knowledge, etc.
+# Example:
+#   context: |
+#     Tech stack: TypeScript, React, Node.js
+#     We use conventional commits
+#     Domain: e-commerce platform
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing
