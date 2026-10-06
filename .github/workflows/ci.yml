@@ -30,7 +30,7 @@ jobs:
           --health-retries 30
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
       - run: uv sync --python 3.12 --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
