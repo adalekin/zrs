@@ -1,0 +1,14 @@
+{
+  "identities": [
+    {
+      "name": "zrs-dev",
+      "credentials": [
+        {
+          "accessKey": "zrs-dev",
+          "secretKey": "zrs-dev-secret"
+        }
+      ],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

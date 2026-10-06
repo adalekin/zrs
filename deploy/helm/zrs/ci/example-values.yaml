@@ -1,0 +1,45 @@
+# A complete set of values: used by `helm lint` and `helm template` in CI, and as a starting point.
+imagePullSecrets:
+  - name: ghcr-pull
+
+settings:
+  oidc:
+    issuer: https://idp.example.com/realms/main
+    clientId: zrs
+    audience: zrs
+    rolesClaim: groups
+  roles:
+    requester: employees
+    moderator: finance-approvers
+    financeDirector: finance-heads
+    payer: accounting
+  currencies: [EUR, USD]
+  attachmentMaxBytes: 10485760
+  uiLocale: en
+  publicUrl: https://zrs.example.com
+  storage:
+    endpointUrl: https://s3.example.com
+    bucket: zrs
+    region: eu-central-1
+  database:
+    host: postgres.example.com
+    port: 5432
+    name: zrs
+    user: zrs
+
+secrets:
+  existingSecret: zrs-secrets
+
+web:
+  service:
+    type: NodePort
+    nodePort: 30080
+
+migrations:
+  podAnnotations:
+    sidecar.istio.io/inject: "false"
+
+ingress:
+  enabled: true
+  className: nginx
+  host: zrs.example.com

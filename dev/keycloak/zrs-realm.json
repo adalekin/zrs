@@ -1,0 +1,99 @@
+{
+  "realm": "zrs",
+  "displayName": "ZRS development",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "roles": {
+    "client": {
+      "zrs-web": [
+        { "name": "requester" },
+        { "name": "moderator" },
+        { "name": "finance_director" },
+        { "name": "payer" }
+      ]
+    }
+  },
+  "clients": [
+    {
+      "clientId": "zrs-web",
+      "name": "ZRS web",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "secret": "zrs-web-secret",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:3300/*"],
+      "webOrigins": ["http://localhost:3300"],
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:3300/*"
+      },
+      "defaultClientScopes": ["basic", "profile", "email", "roles", "web-origins", "acr"],
+      "protocolMappers": [
+        {
+          "name": "zrs-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "zrs",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Requester",
+      "email": "alice@zrs.test",
+      "credentials": [{ "type": "password", "value": "alice", "temporary": false }],
+      "clientRoles": { "zrs-web": ["requester"] }
+    },
+    {
+      "username": "bob",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Bob",
+      "lastName": "Moderator",
+      "email": "bob@zrs.test",
+      "credentials": [{ "type": "password", "value": "bob", "temporary": false }],
+      "clientRoles": { "zrs-web": ["requester", "moderator"] }
+    },
+    {
+      "username": "carol",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Carol",
+      "lastName": "Director",
+      "email": "carol@zrs.test",
+      "credentials": [{ "type": "password", "value": "carol", "temporary": false }],
+      "clientRoles": { "zrs-web": ["finance_director"] }
+    },
+    {
+      "username": "dave",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Dave",
+      "lastName": "Payer",
+      "email": "dave@zrs.test",
+      "credentials": [{ "type": "password", "value": "dave", "temporary": false }],
+      "clientRoles": { "zrs-web": ["payer"] }
+    },
+    {
+      "username": "eve",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Eve",
+      "lastName": "Norole",
+      "email": "eve@zrs.test",
+      "credentials": [{ "type": "password", "value": "eve", "temporary": false }]
+    }
+  ]
+}

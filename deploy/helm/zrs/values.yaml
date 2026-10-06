@@ -1,0 +1,98 @@
+# Values without a default are required: `helm install` fails and names the missing one.
+# The chart does not run PostgreSQL, the S3-compatible storage or the identity provider.
+
+imagePullSecrets: []
+
+settings:
+  # OpenID Connect provider of the organization
+  oidc:
+    # Issuer URL, e.g. https://idp.example.com/realms/main
+    issuer: ""
+    # Client the web app signs people in with
+    clientId: ""
+    # Expected "aud" of the access token
+    audience: ""
+    # Where the provider lists roles: a top-level claim name or a dot-separated path
+    rolesClaim: ""
+  # The provider's value for each of the four roles
+  roles:
+    requester: ""
+    moderator: ""
+    financeDirector: ""
+    payer: ""
+  # ISO 4217 codes, e.g. [EUR, USD]
+  currencies: []
+  # Largest payment document, in bytes
+  attachmentMaxBytes: ""
+  # Interface language: ru or en
+  uiLocale: ""
+  # Public URL of the web app, e.g. https://zrs.example.com
+  publicUrl: ""
+  storage:
+    endpointUrl: ""
+    bucket: ""
+    region: ""
+  database:
+    host: ""
+    port: 5432
+    name: ""
+    user: ""
+
+# Secret settings. Either name an existing Secret holding the keys below, or put the values here
+# and the chart creates the Secret.
+#   DB_PASSWORD, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, OIDC_CLIENT_SECRET, AUTH_SECRET
+secrets:
+  existingSecret: ""
+  values:
+    dbPassword: ""
+    storageAccessKeyId: ""
+    storageSecretAccessKey: ""
+    oidcClientSecret: ""
+    # Random string that encrypts the session cookie
+    authSecret: ""
+
+server:
+  image:
+    repository: ghcr.io/adalekin/zrs-server
+    # Defaults to the chart's appVersion
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  service:
+    type: ClusterIP
+    port: 80
+    # Only for type NodePort
+    nodePort: ""
+
+web:
+  image:
+    repository: ghcr.io/adalekin/zrs-web
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  service:
+    type: ClusterIP
+    port: 80
+    nodePort: ""
+
+# The Job that runs database migrations on every install and upgrade.
+# Server pods report ready only after it has brought the schema up to their revision.
+migrations:
+  podAnnotations: {}
+  podLabels: {}
+  resources: {}
+  # Seconds a finished Job is kept for its logs
+  ttlSecondsAfterFinished: 86400
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: ""
+  tls: []

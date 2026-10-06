@@ -1,0 +1,9 @@
+apiVersion: v2
+name: zrs
+description: Expense requests - submission, approval and payment tracking for an organization
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/adalekin/zrs
+sources:
+  - https://github.com/adalekin/zrs
