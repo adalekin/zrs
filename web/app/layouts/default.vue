@@ -29,7 +29,7 @@ onMounted(async () => {
 
   <div v-else-if="me" class="min-h-screen">
     <header class="border-b">
-      <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
         <NuxtLink to="/" class="flex items-center gap-2 text-lg font-semibold">
           <AppLogo />
           ZRS
@@ -53,7 +53,7 @@ onMounted(async () => {
         </div>
       </div>
     </header>
-    <main class="mx-auto max-w-6xl px-4 py-6">
+    <main class="mx-auto max-w-7xl px-4 py-6">
       <slot />
     </main>
   </div>

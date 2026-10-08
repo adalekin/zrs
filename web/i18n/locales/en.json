@@ -138,7 +138,19 @@
     "save": "Save",
     "dismiss": "Cancel",
     "active": "Active",
-    "empty": "No values"
+    "empty": "No values",
+    "color": "Colour of \"{name}\"",
+    "noColor": "No colour"
+  },
+  "color": {
+    "red": "Red",
+    "orange": "Orange",
+    "yellow": "Yellow",
+    "green": "Green",
+    "teal": "Teal",
+    "blue": "Blue",
+    "violet": "Violet",
+    "pink": "Pink"
   },
   "access": {
     "title": "No access",

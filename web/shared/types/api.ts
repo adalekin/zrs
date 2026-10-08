@@ -11,6 +11,9 @@ export type Action = 'approve' | 'escalate' | 'return' | 'reject' | 'resubmit' |
 export const REFERENCE_KINDS = ['operation_type', 'payment_form', 'priority'] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
+export const REFERENCE_COLORS = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'violet', 'pink'] as const
+export type ReferenceColor = (typeof REFERENCE_COLORS)[number]
+
 export interface Person {
   id: number
   name: string
@@ -28,6 +31,8 @@ export interface ReferenceItem {
   kind: ReferenceKind
   name: string
   is_active: boolean
+  /** The colour the finance director gave the value; null when it has none. */
+  color: ReferenceColor | null
 }
 
 export interface JournalEntry {

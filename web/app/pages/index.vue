@@ -91,6 +91,10 @@ function overdue(request: ExpenseRequest) {
 
 /** The first line of the situation: what the request is about. */
 const gist = (request: ExpenseRequest) => request.situation.split('\n', 1)[0]
+
+/** The reference values of a request in the order a card shows them; a request may have no payment form. */
+const marks = (request: ExpenseRequest) =>
+  [request.operation_type, request.priority, request.payment_form].filter(item => item !== null)
 </script>
 
 <template>
@@ -178,17 +182,18 @@ const gist = (request: ExpenseRequest) => request.situation.split('\n', 1)[0]
     </div>
 
     <template v-else>
-      <!-- A phone shows the same rows as cards: a table of six columns does not fit. -->
-      <ul class="grid gap-2 sm:hidden">
+      <!-- A phone shows the same rows as cards: the table does not fit. -->
+      <ul class="grid grid-cols-1 gap-2 sm:hidden">
         <li v-for="request in data.items" :key="request.id">
-          <NuxtLink :to="`/requests/${request.id}`" class="grid gap-1.5 rounded-xl border p-3">
+          <!-- One column that may shrink: a long first line wraps instead of pushing the card wider than the screen. -->
+          <NuxtLink :to="`/requests/${request.id}`" class="grid grid-cols-1 gap-1.5 rounded-xl border p-3">
             <div class="flex items-baseline justify-between gap-3">
-              <span class="min-w-0 truncate font-medium">{{ request.operation_type.name }}</span>
+              <span class="line-clamp-2 min-w-0 font-medium">{{ gist(request) }}</span>
               <span class="shrink-0 font-medium tabular-nums">{{ format.amount(request.amount, request.currency) }}</span>
             </div>
-            <p class="text-muted-foreground truncate text-sm">
-              {{ gist(request) }}
-            </p>
+            <div class="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <ReferenceValue v-for="item in marks(request)" :key="item.id" :item="item" />
+            </div>
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <StatusBadge :status="request.status" />
               <span v-if="who(request)" :class="who(request)!.mine ? 'text-primary font-medium' : 'text-muted-foreground'">
@@ -209,9 +214,13 @@ const gist = (request: ExpenseRequest) => request.situation.split('\n', 1)[0]
               {{ $t('field.id') }}
             </TableHead>
             <TableHead>{{ $t('field.request') }}</TableHead>
+            <TableHead>{{ $t('field.operationType') }}</TableHead>
+            <TableHead>{{ $t('field.priority') }}</TableHead>
             <TableHead class="text-right">
               {{ $t('field.amount') }}
             </TableHead>
+            <!-- Right after the amount: how much and how to pay read together. -->
+            <TableHead>{{ $t('field.paymentForm') }}</TableHead>
             <TableHead>{{ $t('field.status') }}</TableHead>
             <TableHead>{{ $t('field.deadline') }}</TableHead>
             <TableHead>{{ $t('field.submittedAt') }}</TableHead>
@@ -228,17 +237,25 @@ const gist = (request: ExpenseRequest) => request.situation.split('\n', 1)[0]
               {{ request.id }}
             </TableCell>
             <TableCell class="max-w-0 w-full">
-              <NuxtLink :to="`/requests/${request.id}`" class="font-medium hover:underline" @click.stop>
-                {{ request.operation_type.name }}
+              <NuxtLink :to="`/requests/${request.id}`" class="block truncate font-medium hover:underline" @click.stop>
+                {{ gist(request) }}
               </NuxtLink>
               <!-- A person who sees only their own requests does not need their own name in every row. -->
-              <span v-if="request.author.id !== me?.id" class="text-muted-foreground"> · {{ request.author.name }}</span>
-              <p class="text-muted-foreground truncate">
-                {{ gist(request) }}
+              <p v-if="request.author.id !== me?.id" class="text-muted-foreground truncate">
+                {{ request.author.name }}
               </p>
+            </TableCell>
+            <TableCell class="text-muted-foreground text-xs">
+              <ReferenceValue :item="request.operation_type" />
+            </TableCell>
+            <TableCell class="text-muted-foreground text-xs">
+              <ReferenceValue :item="request.priority" />
             </TableCell>
             <TableCell class="text-right font-medium whitespace-nowrap tabular-nums">
               {{ format.amount(request.amount, request.currency) }}
+            </TableCell>
+            <TableCell class="text-muted-foreground text-xs">
+              <ReferenceValue v-if="request.payment_form" :item="request.payment_form" />
             </TableCell>
             <TableCell class="whitespace-nowrap">
               <StatusBadge :status="request.status" />

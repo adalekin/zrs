@@ -234,8 +234,9 @@ const DOTS: Record<Status, string> = {
           <p class="text-3xl font-semibold tabular-nums">
             {{ format.amount(request.amount, request.currency) }}
           </p>
-          <p class="text-muted-foreground text-sm">
-            {{ request.operation_type.name }} · {{ request.payment_period }}
+          <p class="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-1.5 text-sm">
+            <ReferenceValue :item="request.operation_type" />
+            <span>· {{ request.payment_period }}</span>
           </p>
         </div>
         <ol v-if="steps.length > 0" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -268,7 +269,7 @@ const DOTS: Record<Status, string> = {
           <h2 class="text-muted-foreground text-xs">
             {{ $t('field.situation') }}
           </h2>
-          <p class="whitespace-pre-wrap">
+          <p class="max-w-3xl whitespace-pre-wrap">
             {{ request.situation }}
           </p>
         </div>
@@ -276,7 +277,7 @@ const DOTS: Record<Status, string> = {
           <h2 class="text-muted-foreground text-xs">
             {{ $t('field.solution') }}
           </h2>
-          <p class="whitespace-pre-wrap">
+          <p class="max-w-3xl whitespace-pre-wrap">
             {{ request.solution }}
           </p>
         </div>
@@ -287,7 +288,9 @@ const DOTS: Record<Status, string> = {
           <dt class="text-muted-foreground text-xs">
             {{ $t('field.priority') }}
           </dt>
-          <dd>{{ request.priority.name }}</dd>
+          <dd>
+            <ReferenceValue :item="request.priority" />
+          </dd>
         </div>
         <div v-if="request.deadline">
           <dt class="text-muted-foreground text-xs">
@@ -301,7 +304,9 @@ const DOTS: Record<Status, string> = {
           <dt class="text-muted-foreground text-xs">
             {{ $t('field.paymentForm') }}
           </dt>
-          <dd>{{ request.payment_form.name }}</dd>
+          <dd>
+            <ReferenceValue :item="request.payment_form" />
+          </dd>
         </div>
         <div>
           <dt class="text-muted-foreground text-xs">

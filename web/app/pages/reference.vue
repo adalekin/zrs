@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { CheckIcon } from '@lucide/vue'
+
 const api = useApi()
 const me = useMe()
 const showFailure = useFailureToast()
@@ -42,6 +44,19 @@ function rename() {
 function setActive(item: ReferenceItem, isActive: boolean) {
   return change(() => api(`/reference-items/${item.id}`, { method: 'PATCH', body: { is_active: isActive } }))
 }
+
+// The value whose palette is open.
+const coloring = ref<number>()
+
+// The options of the palette: no colour first, then the colours.
+const PALETTE = [null, ...REFERENCE_COLORS]
+
+function setColor(item: ReferenceItem, color: ReferenceColor | null) {
+  return change(async () => {
+    await api(`/reference-items/${item.id}`, { method: 'PATCH', body: { color } })
+    coloring.value = undefined
+  })
+}
 </script>
 
 <template>
@@ -71,7 +86,19 @@ function setActive(item: ReferenceItem, isActive: boolean) {
           {{ $t('reference.empty') }}
         </p>
         <ul class="grid gap-2">
-          <li v-for="item in items.filter(item => item.kind === kind)" :key="item.id" class="flex items-center gap-3">
+          <li
+            v-for="item in items.filter(item => item.kind === kind)"
+            :key="item.id"
+            class="flex flex-wrap items-center gap-x-3 gap-y-2"
+          >
+            <button
+              type="button"
+              class="size-5 shrink-0 rounded-full"
+              :class="item.color ? REFERENCE_SWATCHES[item.color] : 'border-muted-foreground/50 border border-dashed'"
+              :aria-label="$t('reference.color', { name: item.name })"
+              :aria-expanded="coloring === item.id"
+              @click="coloring = coloring === item.id ? undefined : item.id"
+            />
             <form
               v-if="renaming?.id === item.id"
               class="flex flex-1 items-center gap-2"
@@ -97,6 +124,30 @@ function setActive(item: ReferenceItem, isActive: boolean) {
               :aria-label="$t('reference.active')"
               @update:model-value="value => setActive(item, value)"
             />
+            <!-- The palette opens under the value it colours. Every option carries its name: colour alone is not told apart by everybody. -->
+            <div
+              v-if="coloring === item.id"
+              class="grid w-full grid-cols-2 gap-x-2"
+              role="radiogroup"
+              :aria-label="$t('reference.color', { name: item.name })"
+            >
+              <button
+                v-for="color in PALETTE"
+                :key="color ?? 'none'"
+                type="button"
+                role="radio"
+                class="hover:bg-muted flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm"
+                :aria-checked="item.color === color"
+                @click="setColor(item, color)"
+              >
+                <span
+                  class="size-4 shrink-0 rounded-full"
+                  :class="color ? REFERENCE_SWATCHES[color] : 'border-muted-foreground/50 border border-dashed'"
+                />
+                <span class="flex-1 truncate">{{ color ? $t(`color.${color}`) : $t('reference.noColor') }}</span>
+                <CheckIcon v-if="item.color === color" class="size-4 shrink-0" />
+              </button>
+            </div>
           </li>
         </ul>
         <form class="flex items-center gap-2" novalidate @submit.prevent="add(kind)">
