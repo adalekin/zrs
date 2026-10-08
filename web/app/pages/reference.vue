@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckIcon } from '@lucide/vue'
+import { XIcon } from '@lucide/vue'
 
 const api = useApi()
 const me = useMe()
@@ -93,7 +93,7 @@ function setColor(item: ReferenceItem, color: ReferenceColor | null) {
           >
             <button
               type="button"
-              class="size-5 shrink-0 rounded-full"
+              class="ring-offset-background ring-border size-5 shrink-0 rounded-full ring-offset-2 transition-shadow hover:ring-2"
               :class="item.color ? REFERENCE_SWATCHES[item.color] : 'border-muted-foreground/50 border border-dashed'"
               :aria-label="$t('reference.color', { name: item.name })"
               :aria-expanded="coloring === item.id"
@@ -124,10 +124,10 @@ function setColor(item: ReferenceItem, color: ReferenceColor | null) {
               :aria-label="$t('reference.active')"
               @update:model-value="value => setActive(item, value)"
             />
-            <!-- The palette opens under the value it colours. Every option carries its name: colour alone is not told apart by everybody. -->
+            <!-- The palette opens under the name of the value it colours: one row of circles, the chosen one is ringed. -->
             <div
               v-if="coloring === item.id"
-              class="grid w-full grid-cols-2 gap-x-2"
+              class="flex w-full flex-wrap gap-2 pl-8"
               role="radiogroup"
               :aria-label="$t('reference.color', { name: item.name })"
             >
@@ -136,16 +136,17 @@ function setColor(item: ReferenceItem, color: ReferenceColor | null) {
                 :key="color ?? 'none'"
                 type="button"
                 role="radio"
-                class="hover:bg-muted flex h-8 items-center gap-2 rounded-md px-2 text-left text-sm"
+                class="ring-offset-background flex size-6 items-center justify-center rounded-full ring-offset-2 transition-shadow hover:ring-2"
+                :class="[
+                  color ? REFERENCE_SWATCHES[color] : 'text-muted-foreground border-muted-foreground/50 border border-dashed',
+                  item.color === color ? 'ring-foreground/70 ring-2' : 'ring-border',
+                ]"
                 :aria-checked="item.color === color"
+                :aria-label="color ? $t(`color.${color}`) : $t('reference.noColor')"
+                :title="color ? $t(`color.${color}`) : $t('reference.noColor')"
                 @click="setColor(item, color)"
               >
-                <span
-                  class="size-4 shrink-0 rounded-full"
-                  :class="color ? REFERENCE_SWATCHES[color] : 'border-muted-foreground/50 border border-dashed'"
-                />
-                <span class="flex-1 truncate">{{ color ? $t(`color.${color}`) : $t('reference.noColor') }}</span>
-                <CheckIcon v-if="item.color === color" class="size-4 shrink-0" />
+                <XIcon v-if="!color" class="size-3.5" />
               </button>
             </div>
           </li>
