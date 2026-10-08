@@ -37,7 +37,7 @@ async def create_reference_item(
 @router.patch(
     "/{item_id}",
     response_model=ReferenceItemRead,
-    summary="Rename a value, switch it off or on",
+    summary="Rename a value, set its colour, switch it off or on",
 )
 async def update_reference_item(
     item_id: int,

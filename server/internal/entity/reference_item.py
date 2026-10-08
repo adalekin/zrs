@@ -12,3 +12,5 @@ class ReferenceItem(MixinWithAutoNow, Base):
     kind: Mapped[str] = mapped_column(String(32), index=True)
     name: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=true())
+    # The colour the lists and the request show the value in; a value without one stays plain.
+    color: Mapped[str | None] = mapped_column(String(16))

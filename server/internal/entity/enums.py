@@ -31,3 +31,14 @@ class ReferenceKind(StrEnum):
     OPERATION_TYPE = "operation_type"
     PAYMENT_FORM = "payment_form"
     PRIORITY = "priority"
+
+
+class ReferenceColor(StrEnum):
+    RED = "red"
+    ORANGE = "orange"
+    YELLOW = "yellow"
+    GREEN = "green"
+    TEAL = "teal"
+    BLUE = "blue"
+    VIOLET = "violet"
+    PINK = "pink"
