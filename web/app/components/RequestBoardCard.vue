@@ -9,6 +9,8 @@ const props = defineProps<{
 
 const format = useFormat()
 const overdue = computed(() => isOverdue(props.request, calendarDay()))
+// Who pays is named only while the request waits for the payment.
+const payer = computed(() => holderOf(props.request.status) === 'payer' ? props.request.payer : null)
 </script>
 
 <template>
@@ -36,5 +38,8 @@ const overdue = computed(() => isOverdue(props.request, calendarDay()))
         {{ $t('board.until', { day: format.day(request.deadline) }) }}
       </span>
     </div>
+    <p v-if="payer && !mine" class="text-muted-foreground truncate text-xs">
+      {{ $t('board.payer', { name: payer.name }) }}
+    </p>
   </NuxtLink>
 </template>

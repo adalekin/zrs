@@ -6,7 +6,7 @@ export type Role = (typeof ROLES)[number]
 export const STATUSES = ['new', 'returned', 'escalated', 'approved', 'paid', 'rejected'] as const
 export type Status = (typeof STATUSES)[number]
 
-export type Action = 'approve' | 'escalate' | 'return' | 'reject' | 'resubmit' | 'cancel' | 'pay'
+export type Action = 'approve' | 'escalate' | 'return' | 'reject' | 'resubmit' | 'cancel' | 'pay' | 'reassign'
 
 export const REFERENCE_KINDS = ['operation_type', 'payment_form', 'priority'] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
@@ -46,6 +46,9 @@ export interface JournalEntry {
   person: Person
   status: Status
   status_changed: boolean
+  payer_changed: boolean
+  /** The payer the entry gave the request; empty when it took the payer off or left them as they were. */
+  payer: Person | null
   comment: string | null
   created_at: string
 }

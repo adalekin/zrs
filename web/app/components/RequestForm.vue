@@ -32,6 +32,7 @@ interface Payload {
   payment_form_id: number | null
   priority_id: number | null
   deadline: string | null
+  payer_id: number | null
 }
 
 type Fields = Record<keyof Payload, string>
@@ -52,6 +53,7 @@ const baseline: Fields = reactive(request
       payment_form_id: request.payment_form ? String(request.payment_form.id) : '',
       priority_id: String(request.priority.id),
       deadline: request.deadline ?? '',
+      payer_id: request.payer ? String(request.payer.id) : '',
     }
   : {
       operation_type_id: '',
@@ -64,6 +66,7 @@ const baseline: Fields = reactive(request
       payment_form_id: '',
       priority_id: '',
       deadline: '',
+      payer_id: '',
     })
 
 // Unfinished input survives a closed dialog and a reloaded page: it is kept in the
@@ -110,26 +113,23 @@ function payload(fields: Fields): Payload {
     payment_form_id: idOrNull(fields.payment_form_id),
     priority_id: idOrNull(fields.priority_id),
     deadline: fields.deadline === '' ? null : fields.deadline,
+    payer_id: idOrNull(fields.payer_id),
   }
 }
 
 const initial = payload(baseline)
 
 const { data: lists, error: listsError } = useLoad(async () => {
-  const [operationTypes, paymentForms, priorities, moderators] = await Promise.all([
+  const [operationTypes, paymentForms, priorities, moderators, payers] = await Promise.all([
     api<ReferenceItem[]>('/reference-items', { query: { kind: 'operation_type', is_active: true } }),
     api<ReferenceItem[]>('/reference-items', { query: { kind: 'payment_form', is_active: true } }),
     api<ReferenceItem[]>('/reference-items', { query: { kind: 'priority', is_active: true } }),
     api<Person[]>('/users', { query: { role: 'moderator' } }),
+    api<Person[]>('/users', { query: { role: 'payer' } }),
   ])
-  return { operationTypes, paymentForms, priorities, moderators }
+  return { operationTypes, paymentForms, priorities, moderators, payers }
 })
 watch(listsError, value => value && showFailure(value))
-
-/** The choices of a list, with the value the request already holds kept among them. */
-function withCurrent<T extends { id: number }>(items: T[], current: T | null | undefined): T[] {
-  return current && !items.some(item => item.id === current.id) ? [current, ...items] : items
-}
 
 const operationTypes = computed(() => withCurrent(lists.value?.operationTypes ?? [], request?.operation_type))
 const paymentForms = computed(() => withCurrent(lists.value?.paymentForms ?? [], request?.payment_form))
@@ -139,6 +139,7 @@ const moderators = computed(() => withCurrent(
   (lists.value?.moderators ?? []).filter(person => person.id !== me.value?.id),
   request?.moderator,
 ))
+const payers = computed(() => withCurrent(lists.value?.payers ?? [], request?.payer))
 const currencies = computed(() => {
   const list = me.value?.currencies ?? []
   // A request keeps its currency after the installation drops it from the list.
@@ -182,6 +183,9 @@ watch(lists, async () => {
     }
     if (form.payment_form_id !== '' && !paymentForms.value.some(item => String(item.id) === form.payment_form_id)) {
       form.payment_form_id = ''
+    }
+    if (form.payer_id !== '' && !payers.value.some(person => String(person.id) === form.payer_id)) {
+      form.payer_id = ''
     }
   }
   if (props.autofocus) {
@@ -354,20 +358,14 @@ async function submit() {
         required
         :error="errors.moderator_id"
       >
-        <NativeSelect
+        <PersonSelect
           id="moderator"
           v-model="form.moderator_id"
-          class="w-full"
+          :people="moderators"
+          :empty-label="$t('request.notChosen')"
           aria-required="true"
           :aria-invalid="invalid('moderator_id')"
-        >
-          <NativeSelectOption value="">
-            {{ $t('request.notChosen') }}
-          </NativeSelectOption>
-          <NativeSelectOption v-for="person in moderators" :key="person.id" :value="String(person.id)">
-            {{ person.name }}
-          </NativeSelectOption>
-        </NativeSelect>
+        />
       </FormField>
 
       <FormField
@@ -477,7 +475,7 @@ async function submit() {
 
       <FormField
         id="payment-form"
-        class="sm:col-span-2"
+        class="sm:col-span-3"
         :label="$t('field.paymentForm')"
         :error="errors.payment_form_id"
       >
@@ -496,9 +494,20 @@ async function submit() {
         </NativeSelect>
       </FormField>
 
+      <!-- Who pays stands next to how it is paid. Nobody chosen leaves the request to any payer. -->
+      <FormField id="payer" class="sm:col-span-3" :label="$t('field.payer')" :error="errors.payer_id">
+        <PersonSelect
+          id="payer"
+          v-model="form.payer_id"
+          :people="payers"
+          :empty-label="$t('request.anyPayer')"
+          :aria-invalid="invalid('payer_id')"
+        />
+      </FormField>
+
       <FormField
         id="priority"
-        class="sm:col-span-2"
+        class="sm:col-span-3"
         :label="$t('field.priority')"
         required
         :error="errors.priority_id"
@@ -519,7 +528,7 @@ async function submit() {
         </NativeSelect>
       </FormField>
 
-      <FormField id="deadline" class="sm:col-span-2" :label="$t('field.deadline')" :error="errors.deadline">
+      <FormField id="deadline" class="sm:col-span-3" :label="$t('field.deadline')" :error="errors.deadline">
         <Input id="deadline" v-model="form.deadline" type="date" :aria-invalid="invalid('deadline')" />
       </FormField>
 

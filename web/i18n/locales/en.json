@@ -49,7 +49,8 @@
     "reject": "Reject",
     "resubmit": "Submit again",
     "cancel": "Cancel the request",
-    "pay": "Mark as paid"
+    "pay": "Mark as paid",
+    "reassign": "Change the payer"
   },
   "requests": {
     "title": "Requests",
@@ -95,6 +96,8 @@
     "fileLimit": "File size up to {limit}",
     "removeFile": "Remove",
     "journal": "Journal",
+    "payerSet": "Payer: {name}",
+    "payerCleared": "The payer is taken off",
     "comment": "Comment",
     "commentOptional": "Comment (optional)",
     "addComment": "Add a comment",
@@ -130,7 +133,8 @@
       "author": "Being corrected by the author: {name}",
       "moderator": "With the moderator: {name}",
       "finance_director": "With the finance director",
-      "payer": "Approved, waits for payment"
+      "payer": "Approved, waits for payment",
+      "payerNamed": "Approved, waits for payment by {name}"
     },
     "step": {
       "author": "Author",
@@ -141,7 +145,8 @@
     "paidBy": "{date}. Paid by {name}",
     "fixHint": "Correct the request and send it again.",
     "sending": "Sending…",
-    "uploading": "Uploading files: {done} of {total}"
+    "uploading": "Uploading files: {done} of {total}",
+    "anyPayer": "Any payer"
   },
   "reference": {
     "title": "Reference lists",
@@ -203,7 +208,9 @@
       "not_a_moderator": "This person does not have the moderator role",
       "reference_list_empty": "The reference list is empty. Ask the finance director to fill it",
       "reference_item_inactive": "This value is switched off in the reference list",
-      "position_out_of_range": "The list has no such place"
+      "position_out_of_range": "The list has no such place",
+      "not_a_payer": "This person is not a payer",
+      "not_accepted": "This action does not take such a field"
     },
     "code": {
       "DuplicateReferenceItem": "The list already has a value with this name",
@@ -219,7 +226,8 @@
     "author": "with the author: {name}",
     "moderator": "with the moderator: {name}",
     "finance_director": "with the finance director",
-    "payer": "waits for payment"
+    "payer": "waits for payment",
+    "payerNamed": "waits for payment by {name}"
   },
   "board": {
     "at": {
@@ -232,6 +240,7 @@
     "more": "{count} more in the list",
     "finished": "Finished",
     "number": "No. {id}",
-    "until": "by {day}"
+    "until": "by {day}",
+    "payer": "payer: {name}"
   }
 }

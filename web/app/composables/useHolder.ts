@@ -7,7 +7,11 @@ export function useHolder() {
     if (!holder) {
       return undefined
     }
-    // The author and the moderator are people of the request, the other two parties are roles.
+    // The author and the moderator are people of the request, the finance director is a role,
+    // and the payer is a person once somebody is assigned.
+    if (holder === 'payer') {
+      return { text: request.payer ? t('holder.payerNamed', { name: request.payer.name }) : t('holder.payer'), mine: false }
+    }
     const person = holder === 'author' ? request.author : holder === 'moderator' ? request.moderator : undefined
     return { text: t(`holder.${holder}`, { name: person?.name }), mine: false }
   }

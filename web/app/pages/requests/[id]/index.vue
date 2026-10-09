@@ -52,16 +52,22 @@ const forward = computed(() => request.value!.actions.filter(action => FORWARD.i
 const sideways = computed(() => request.value!.actions.filter(action => !FORWARD.includes(action) && !STOPPING.includes(action)))
 const stopping = computed(() => request.value!.actions.filter(action => STOPPING.includes(action)))
 
-/** The request waits for the person looking: the server offers them more than a cancel. */
-const myTurn = computed(() => request.value!.actions.some(action => action !== 'cancel'))
+// Actions a person may take at any time: they do not make the request wait for that person.
+const AT_WILL: Action[] = ['cancel', 'reassign']
+
+/** The request waits for the person looking: the server offers them an action that moves it. */
+const myTurn = computed(() => request.value!.actions.some(action => !AT_WILL.includes(action)))
 
 const panelTitle = computed(() => {
-  const { status, author, moderator } = request.value!
+  const { status, author, moderator, payer } = request.value!
   if (myTurn.value) {
     return t(`request.turn.${status}`)
   }
   if (!holder.value) {
     return t(`status.${status}`)
+  }
+  if (holder.value === 'payer') {
+    return payer ? t('request.at.payerNamed', { name: payer.name }) : t('request.at.payer')
   }
   const name = holder.value === 'author' ? author.name : moderator.name
   return t(`request.at.${holder.value}`, { name })
@@ -80,14 +86,47 @@ const editing = ref(false)
 const pending = ref<Action>()
 const actionComment = ref('')
 const paidOn = ref('')
+const payerId = ref('')
 const actionErrors = ref<Record<string, string>>({})
 const sending = ref(false)
 
-function ask(action: Action) {
+// Approving may name the payer and reassigning does name one: these two actions ask who pays.
+const NAMES_PAYER: Action[] = ['approve', 'reassign']
+
+// The payers are asked for when the first such action is opened, and kept for the next one.
+const payers = shallowRef<Person[]>()
+const payerChoices = computed(() => withCurrent(payers.value ?? [], request.value!.payer))
+
+/**
+ * What the empty choice of a payer is called. An approval cannot take the payer away, so a
+ * request that has one offers no empty choice there; reassigning may leave it to any payer.
+ */
+const noPayerLabel = computed(() =>
+  pending.value === 'reassign' || !request.value!.payer ? t('request.anyPayer') : undefined)
+
+async function ask(action: Action) {
   pending.value = action
   actionComment.value = ''
   paidOn.value = ''
+  payerId.value = request.value!.payer ? String(request.value!.payer.id) : ''
   actionErrors.value = {}
+  if (NAMES_PAYER.includes(action) && !payers.value) {
+    try {
+      payers.value = await api<Person[]>('/users', { query: { role: 'payer' } })
+    }
+    catch (failure) {
+      showFailure(failure)
+    }
+  }
+}
+
+/** The payer an action sends: reassigning always says who, approving only when somebody is chosen. */
+function payerOf(action: Action): number | null | undefined {
+  const chosen = payerId.value === '' ? null : Number(payerId.value)
+  if (action === 'reassign') {
+    return chosen
+  }
+  return action === 'approve' && chosen !== null ? chosen : undefined
 }
 
 async function apply() {
@@ -100,6 +139,7 @@ async function apply() {
       body: {
         comment: actionComment.value.trim() || undefined,
         paid_on: action === 'pay' ? paidOn.value || undefined : undefined,
+        payer_id: payerOf(action),
       },
     })
     pending.value = undefined
@@ -446,6 +486,9 @@ const DOTS: Record<Status, string> = {
                 <span class="font-medium">{{ entry.person.name }}</span>
                 <StatusBadge v-if="entry.status_changed" :status="entry.status" />
               </div>
+              <p v-if="entry.payer_changed">
+                {{ entry.payer ? $t('request.payerSet', { name: entry.payer.name }) : $t('request.payerCleared') }}
+              </p>
               <p v-if="entry.comment" class="whitespace-pre-wrap">
                 {{ entry.comment }}
               </p>
@@ -484,6 +527,14 @@ const DOTS: Record<Status, string> = {
             :error="actionErrors.paid_on"
           >
             <Input id="paid-on" v-model="paidOn" type="date" class="w-fit" required />
+          </FormField>
+          <FormField
+            v-if="NAMES_PAYER.includes(pending)"
+            id="action-payer"
+            :label="$t('field.payer')"
+            :error="actionErrors.payer_id"
+          >
+            <PersonSelect id="action-payer" v-model="payerId" :people="payerChoices" :empty-label="noPayerLabel" />
           </FormField>
           <FormField id="action-comment" :label="$t('request.commentOptional')" :error="actionErrors.comment">
             <Textarea id="action-comment" v-model="actionComment" rows="3" />
