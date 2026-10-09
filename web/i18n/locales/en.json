@@ -33,6 +33,8 @@
     "paymentForm": "Payment form",
     "priority": "Priority",
     "deadline": "Deadline",
+    "deadlineTooLate": "The payment will not be made today: payments are made until {time}",
+    "deadlinePassed": "This day has passed",
     "attachments": "Payment documents",
     "author": "Author",
     "payer": "Payer",

@@ -24,10 +24,19 @@ export interface Person {
   email: string | null
 }
 
+/** When the people who make the payments stop for the day. */
+export interface PaymentDaySetting {
+  /** HH:MM */
+  ends_at: string
+  /** The IANA time zone that time is in. */
+  timezone: string
+}
+
 export interface Me extends Person {
   roles: Role[]
   currencies: string[]
   attachment_max_bytes: number
+  payment_day: PaymentDaySetting
 }
 
 export interface ReferenceItem {

@@ -146,6 +146,24 @@ const currencies = computed(() => {
   return request && !list.includes(request.currency) ? [request.currency, ...list] : list
 })
 
+// A deadline the payment cannot meet is said under the field; the request is taken all the same.
+const deadlineWarning = computed(() => {
+  if (!me.value || form.deadline === '') {
+    return undefined
+  }
+  const paymentDay = PaymentDay.of(me.value.payment_day)
+  const now = new Date()
+  const verdict = paymentDay.judge(form.deadline, now)
+  if (verdict === 'passed') {
+    return t('field.deadlinePassed')
+  }
+  if (verdict === 'too_late_today') {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+    return t('field.deadlineTooLate', { time: paymentDay.closing(now, zone, locale.value) })
+  }
+  return undefined
+})
+
 // What keeps a request from being submitted at all, said before the person starts typing.
 const blockers = computed(() => {
   if (!lists.value) {
@@ -528,7 +546,13 @@ async function submit() {
         </NativeSelect>
       </FormField>
 
-      <FormField id="deadline" class="sm:col-span-3" :label="$t('field.deadline')" :error="errors.deadline">
+      <FormField
+        id="deadline"
+        class="sm:col-span-3"
+        :label="$t('field.deadline')"
+        :warning="deadlineWarning"
+        :error="errors.deadline"
+      >
         <Input id="deadline" v-model="form.deadline" type="date" :aria-invalid="invalid('deadline')" />
       </FormField>
 
