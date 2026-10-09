@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from approck_sqlalchemy_utils.mixins.auto_now import MixinWithAutoNow
 from approck_sqlalchemy_utils.model import Base
-from sqlalchemy import TIMESTAMP, BigInteger, Boolean, Date, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import TIMESTAMP, BigInteger, Boolean, Date, ForeignKey, Numeric, String, Text, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from internal.entity.person import Person
@@ -44,18 +44,23 @@ class ExpenseRequest(MixinWithAutoNow, Base):
 
 
 class JournalEntry(Base):
-    """Append-only record of a status change or a comment. Rows are never updated or deleted."""
+    """Append-only record of a status change, a change of the payer or a comment. Rows are never updated or deleted."""
 
     request_id: Mapped[int] = mapped_column(ForeignKey("expense_request.id"), index=True)
     person_id: Mapped[int] = mapped_column(ForeignKey("person.id"))
     #: Status of the request right after the action.
     status: Mapped[str] = mapped_column(String(16))
     status_changed: Mapped[bool] = mapped_column(Boolean)
+    #: Whether the action changed who pays the request.
+    payer_changed: Mapped[bool] = mapped_column(Boolean, server_default=false())
+    #: The payer the action gave the request; empty when it took the payer off or left them as they were.
+    payer_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"))
     comment: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
 
     request: Mapped[ExpenseRequest] = relationship(back_populates="journal")
-    person: Mapped[Person] = relationship(lazy="joined")
+    person: Mapped[Person] = relationship(foreign_keys=[person_id], lazy="joined")
+    payer: Mapped[Person | None] = relationship(foreign_keys=[payer_id], lazy="joined")
 
 
 class Attachment(Base):

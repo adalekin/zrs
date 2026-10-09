@@ -166,7 +166,8 @@ async def remove_attachment(
     summary="Apply an action to a request",
     description=(
         "Moves the request along its life cycle. Answers 403 when the action is never available to the "
-        "current person for this request, and 409 with the current status when it is available in another status."
+        "current person for this request, and 409 with the current status when it is available in another status. "
+        "The reassign action keeps the status and changes the payer of an approved request."
     ),
 )
 async def act_on_request(
@@ -177,5 +178,7 @@ async def act_on_request(
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
     body = dto or ActionRequest()
-    request = await service.act(actor, request_id, action, comment=body.comment, paid_on=body.paid_on)
+    # Only the fields the caller gave: a null they sent is a choice, a field they left out is not.
+    parameters = body.model_dump(exclude_unset=True, exclude={"comment"})
+    request = await service.act(actor, request_id, action, comment=body.comment, parameters=parameters)
     return _detail(actor, request)

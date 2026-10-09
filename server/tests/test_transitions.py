@@ -8,7 +8,7 @@ import pytest
 from tests.conftest import Session, World
 
 STATUSES = ["new", "returned", "escalated", "approved", "paid", "rejected"]
-ACTIONS = ["approve", "escalate", "return", "reject", "resubmit", "cancel", "pay"]
+ACTIONS = ["approve", "escalate", "return", "reject", "resubmit", "cancel", "pay", "reassign"]
 PERSONAS = ["author", "moderator", "finance_director", "payer"]
 
 #: (persona, action, status the request is in) -> status it moves to. Everything else is refused.
@@ -26,7 +26,10 @@ ALLOWED: dict[tuple[str, str, str], str] = {
     ("finance_director", "return", "escalated"): "returned",
     ("finance_director", "reject", "escalated"): "rejected",
     ("payer", "pay", "approved"): "paid",
+    ("finance_director", "reassign", "approved"): "approved",
 }
+#: Actions that keep the status: their journal entry says the status did not change.
+KEEP_STATUS = {"reassign"}
 
 
 @dataclass
@@ -92,7 +95,7 @@ async def test_every_combination_of_person_action_and_status(
 ) -> None:
     await drive(cast, status)
     journal_before = await cast.journal()
-    body = {"paid_on": "2026-10-02"} if action == "pay" else {}
+    body = {"pay": {"paid_on": "2026-10-02"}, "reassign": {"payer_id": cast.payer.id}}.get(action, {})
 
     response = await cast.session(persona).post(f"/v1/requests/{cast.request_id}/{action}", json=body)
 
@@ -104,7 +107,7 @@ async def test_every_combination_of_person_action_and_status(
         journal = await cast.journal()
         assert len(journal) == len(journal_before) + 1
         assert journal[-1]["status"] == target
-        assert journal[-1]["status_changed"] is True
+        assert journal[-1]["status_changed"] is (action not in KEEP_STATUS)
         assert journal[-1]["person"]["id"] == cast.session(persona).id
         return
 

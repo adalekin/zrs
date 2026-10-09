@@ -28,6 +28,7 @@ class RequestCreate(BaseModel):
     payment_period: ShortText
     payment_form_id: int | None = None
     deadline: datetime.date | None = None
+    payer_id: int | None = None
 
 
 class RequestUpdate(BaseModel):
@@ -41,11 +42,19 @@ class RequestUpdate(BaseModel):
     payment_period: ShortText | None = None
     payment_form_id: int | None = None
     deadline: datetime.date | None = None
+    payer_id: int | None = None
 
 
 class ActionRequest(BaseModel):
     comment: Text | None = None
     paid_on: datetime.date | None = Field(default=None, description="Payment date, required by the pay action")
+    payer_id: int | None = Field(
+        default=None,
+        description=(
+            "The payer of the request. The approve action may name one; the reassign action must carry the "
+            "field, and a null there leaves the request to any payer"
+        ),
+    )
 
 
 class CommentCreate(BaseModel):
@@ -59,6 +68,8 @@ class JournalEntryRead(BaseModel):
     person: PersonRead
     status: Status
     status_changed: bool
+    payer_changed: bool
+    payer: PersonRead | None
     comment: str | None
     created_at: datetime.datetime
 

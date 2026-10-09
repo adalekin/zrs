@@ -6,12 +6,13 @@ the API applies actions through this table and reports available actions from it
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 from approck_fastapi_utils.exceptions import Forbidden
 
 from internal.entity.enums import Action, Role, Status
 from internal.entity.expense_request import ExpenseRequest
-from internal.exceptions import StatusConflict
+from internal.exceptions import FieldInvalid, StatusConflict
 from internal.service.actor import Actor
 
 
@@ -20,7 +21,10 @@ class Party(StrEnum):
 
     AUTHOR = "author"
     MODERATOR = "moderator"
+    #: The second level of approval: a finance director who is neither the author nor the moderator.
     FINANCE_DIRECTOR = "finance_director"
+    #: Anyone with the finance director role: disposes of who pays, checks nobody's decision.
+    FINANCE_STEWARD = "finance_steward"
     PAYER = "payer"
 
 
@@ -46,7 +50,27 @@ TRANSITIONS: tuple[Transition, ...] = (
     Transition(Action.RETURN, Status.ESCALATED, Status.RETURNED, Party.FINANCE_DIRECTOR),
     Transition(Action.REJECT, Status.ESCALATED, Status.REJECTED, Party.FINANCE_DIRECTOR),
     Transition(Action.PAY, Status.APPROVED, Status.PAID, Party.PAYER),
+    Transition(Action.REASSIGN, Status.APPROVED, Status.APPROVED, Party.FINANCE_STEWARD),
 )
+
+
+@dataclass(frozen=True)
+class Parameter:
+    """A field of the request body that an action takes."""
+
+    #: The body must carry the field.
+    required: bool = False
+    #: The field may be null: the action then clears what the field sets.
+    nullable: bool = False
+
+
+#: The parameters each action takes besides the comment. A field given to an action that does
+#: not list it is refused: a payment date belongs to paying, a payer to approving and reassigning.
+ACTION_PARAMETERS: dict[Action, dict[str, Parameter]] = {
+    Action.PAY: {"paid_on": Parameter(required=True)},
+    Action.APPROVE: {"payer_id": Parameter()},
+    Action.REASSIGN: {"payer_id": Parameter(required=True, nullable=True)},
+}
 
 #: Statuses no transition leaves: the request is finished.
 FINAL_STATUSES: frozenset[Status] = frozenset(Status) - {transition.source for transition in TRANSITIONS}
@@ -59,7 +83,8 @@ def parties(actor: Actor, request: ExpenseRequest) -> frozenset[Party]:
     """Everything the actor is to this request.
 
     A finance director decides only on requests where they are neither the author nor
-    the moderator: the second level exists to check someone else's decision.
+    the moderator: the second level exists to check someone else's decision. A payer is
+    a party to the requests assigned to them and to the ones assigned to nobody.
     """
     is_author = request.author_id == actor.id
     is_moderator = request.moderator_id == actor.id and actor.has(Role.MODERATOR)
@@ -71,7 +96,9 @@ def parties(actor: Actor, request: ExpenseRequest) -> frozenset[Party]:
         result.add(Party.MODERATOR)
     if actor.has(Role.FINANCE_DIRECTOR) and not is_author and request.moderator_id != actor.id:
         result.add(Party.FINANCE_DIRECTOR)
-    if actor.has(Role.PAYER):
+    if actor.has(Role.FINANCE_DIRECTOR):
+        result.add(Party.FINANCE_STEWARD)
+    if actor.has(Role.PAYER) and request.payer_id in (None, actor.id):
         result.add(Party.PAYER)
 
     return frozenset(result)
@@ -95,6 +122,21 @@ def resolve(actor: Actor, request: ExpenseRequest, action: Action) -> Transition
             return row
 
     raise StatusConflict(status)
+
+
+def check_parameters(action: Action, given: dict[str, Any]) -> None:
+    """Refuse a body that carries a field the action does not take or lacks one it needs."""
+    accepted = ACTION_PARAMETERS.get(action, {})
+
+    for name in given:
+        if name not in accepted:
+            raise FieldInvalid(name, "not_accepted", f"The action '{action}' does not take this field")
+    for name, parameter in accepted.items():
+        if name not in given:
+            if parameter.required:
+                raise FieldInvalid(name, "required", "The field is required")
+        elif given[name] is None and not parameter.nullable:
+            raise FieldInvalid(name, "required", "The field must not be empty")
 
 
 def available_actions(actor: Actor, request: ExpenseRequest) -> list[Action]:

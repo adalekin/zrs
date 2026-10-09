@@ -1,4 +1,3 @@
-import datetime
 from collections.abc import Sequence
 from typing import Any
 
@@ -30,7 +29,7 @@ REFERENCE_FIELDS: dict[str, tuple[ReferenceKind, bool]] = {
     "payment_form_id": (ReferenceKind.PAYMENT_FORM, False),
 }
 #: Fields that may be cleared by an update.
-NULLABLE_FIELDS = frozenset({"payment_form_id", "deadline"})
+NULLABLE_FIELDS = frozenset({"payment_form_id", "deadline", "payer_id"})
 
 
 class VisibleTo:
@@ -75,7 +74,13 @@ class AwaitingActionOf:
                 )
             )
         if self._actor.has(Role.PAYER):
-            conditions.append(ExpenseRequest.status == Status.APPROVED.value)
+            # The same rule as the PAYER party of the transitions: assigned to this person or to nobody.
+            conditions.append(
+                and_(
+                    ExpenseRequest.status == Status.APPROVED.value,
+                    or_(ExpenseRequest.payer_id.is_(None), ExpenseRequest.payer_id == actor_id),
+                )
+            )
 
         return or_(*conditions)
 
@@ -162,7 +167,7 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             request = ExpenseRequest(**values, author_id=actor.id, status=Status.NEW.value)
             self.session.add(request)
             await self.session.flush()
-            self._record(request, actor, status_changed=True, comment=None)
+            self._record(request, actor, status_changed=True, payer_changed=False, comment=None)
 
         return await self.get(actor, request.id)
 
@@ -193,27 +198,39 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         action: Action,
         *,
         comment: str | None,
-        paid_on: datetime.date | None,
+        parameters: dict[str, Any],
     ) -> ExpenseRequest:
+        """Apply an action. ``parameters`` are the fields of the body the caller gave, besides the comment."""
         async with atomic(self.session):
             request = await self._lock(actor, id_)
             transition = transitions.resolve(actor, request, action)
+            transitions.check_parameters(action, parameters)
 
-            if action is Action.PAY:
-                if paid_on is None:
-                    raise FieldInvalid("paid_on", "required", "The payment date is required")
+            payer_before = request.payer_id
+            if "payer_id" in parameters:
+                if parameters["payer_id"] is not None:
+                    await self._validate_person("payer_id", parameters["payer_id"], Role.PAYER, "not_a_payer")
+                request.payer_id = parameters["payer_id"]
+            payer_changed = request.payer_id != payer_before
+            if "paid_on" in parameters:
+                # Whoever marks the payment is the payer of the request from now on.
                 request.payer_id = actor.id
-                request.paid_on = paid_on
+                request.paid_on = parameters["paid_on"]
 
+            status_changed = transition.target is not transition.source
             request.status = transition.target.value
-            self._record(request, actor, status_changed=True, comment=comment)
+            # An action that changed nothing leaves an entry only when it carries a comment.
+            if status_changed or payer_changed or comment is not None:
+                self._record(
+                    request, actor, status_changed=status_changed, payer_changed=payer_changed, comment=comment
+                )
 
         return await self.get(actor, id_)
 
     async def comment(self, actor: Actor, id_: int, comment: str) -> ExpenseRequest:
         async with atomic(self.session):
             request = await self.get(actor, id_)
-            self._record(request, actor, status_changed=False, comment=comment)
+            self._record(request, actor, status_changed=False, payer_changed=False, comment=comment)
 
         return await self.get(actor, id_)
 
@@ -236,13 +253,17 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         await self.session.execute(select(ExpenseRequest.id).where(ExpenseRequest.id == id_).with_for_update())
         return await self.get(actor, id_)
 
-    def _record(self, request: ExpenseRequest, actor: Actor, *, status_changed: bool, comment: str | None) -> None:
+    def _record(
+        self, request: ExpenseRequest, actor: Actor, *, status_changed: bool, payer_changed: bool, comment: str | None
+    ) -> None:
         self.session.add(
             JournalEntry(
                 request_id=request.id,
                 person_id=actor.id,
                 status=request.status,
                 status_changed=status_changed,
+                payer_changed=payer_changed,
+                payer_id=request.payer_id if payer_changed else None,
                 comment=comment,
             )
         )
@@ -254,6 +275,8 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
 
         if "moderator_id" in values:
             await self._validate_moderator(actor, values["moderator_id"])
+        if values.get("payer_id") is not None:
+            await self._validate_person("payer_id", values["payer_id"], Role.PAYER, "not_a_payer")
 
         for field, (kind, required) in REFERENCE_FIELDS.items():
             if field not in values and not (creating and required):
@@ -264,9 +287,13 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         if moderator_id == actor.id:
             raise FieldInvalid("moderator_id", "moderator_is_author", "You cannot choose yourself as the moderator")
 
-        moderator = await self._person_service.find_one(moderator_id)
-        if moderator is None or Role.MODERATOR.value not in moderator.roles:
-            raise FieldInvalid("moderator_id", "not_a_moderator", "The person is not a moderator")
+        await self._validate_person("moderator_id", moderator_id, Role.MODERATOR, "not_a_moderator")
+
+    async def _validate_person(self, field: str, person_id: int, role: Role, code: str) -> None:
+        """The chosen person has signed in and held the role when they last did."""
+        person = await self._person_service.find_one(person_id)
+        if person is None or role.value not in person.roles:
+            raise FieldInvalid(field, code, f"The person does not hold the role '{role.value}'")
 
     async def _validate_reference(self, field: str, kind: ReferenceKind, value: int | None, *, required: bool) -> None:
         if value is None:

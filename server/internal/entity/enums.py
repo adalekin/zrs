@@ -25,6 +25,7 @@ class Action(StrEnum):
     RESUBMIT = "resubmit"
     CANCEL = "cancel"
     PAY = "pay"
+    REASSIGN = "reassign"
 
 
 class ReferenceKind(StrEnum):
