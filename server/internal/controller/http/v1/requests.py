@@ -79,7 +79,7 @@ async def create_request(
     today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
-    return _detail(actor, await service.create(actor, dto), today)
+    return _detail(actor, await service.create(actor, dto, today=today), today)
 
 
 @router.get("/{request_id}", response_model=RequestDetail, summary="A request with its journal and available actions")
@@ -105,7 +105,7 @@ async def update_request(
     today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
-    return _detail(actor, await service.update(actor, request_id, dto), today)
+    return _detail(actor, await service.update(actor, request_id, dto, today=today), today)
 
 
 @router.post(
@@ -121,7 +121,7 @@ async def add_comment(
     today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
-    return _detail(actor, await service.comment(actor, request_id, dto.comment), today)
+    return _detail(actor, await service.comment(actor, request_id, dto.comment, today=today), today)
 
 
 @router.post(
@@ -197,5 +197,5 @@ async def act_on_request(
     body = dto or ActionRequest()
     # Only the fields the caller gave: a null they sent is a choice, a field they left out is not.
     parameters = body.model_dump(exclude_unset=True, exclude={"comment"})
-    request = await service.act(actor, request_id, action, comment=body.comment, parameters=parameters)
+    request = await service.act(actor, request_id, action, comment=body.comment, parameters=parameters, today=today)
     return _detail(actor, request, today)

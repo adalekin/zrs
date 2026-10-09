@@ -33,6 +33,13 @@ class ReferenceListUnordered(Conflict):
     """The value belongs to a list that has no order: only priorities have places."""
 
 
+class NotificationsOff(Conflict):
+    """The installation sends no notifications, so there is no channel to link."""
+
+    def __init__(self) -> None:
+        super().__init__("Notifications are switched off in this installation")
+
+
 class AttachmentTooLarge(CustomException):
     status_code = 413
 

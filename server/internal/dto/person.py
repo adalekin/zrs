@@ -1,3 +1,5 @@
+import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from internal.entity.enums import Role
@@ -16,8 +18,19 @@ class PaymentDayRead(BaseModel):
     timezone: str = Field(description="The IANA time zone that time is in")
 
 
+class NotificationsRead(BaseModel):
+    enabled: bool = Field(description="Whether the installation sends notifications")
+    telegram_linked: bool = Field(description="Whether the person has linked their Telegram chat")
+
+
+class TelegramLinkCodeRead(BaseModel):
+    url: str = Field(description="The link that starts the bot of the installation for this person")
+    expires_at: datetime.datetime
+
+
 class MeRead(PersonRead):
     roles: list[Role]
     currencies: list[str]
     attachment_max_bytes: int
     payment_day: PaymentDayRead
+    notifications: NotificationsRead

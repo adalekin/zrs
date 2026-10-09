@@ -1,9 +1,9 @@
 import datetime
 import re
-from typing import Annotated
+from typing import Annotated, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, ValidationError, field_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy import URL
 
@@ -40,6 +40,20 @@ class Settings(BaseSettings):
     TIMEZONE: ZoneInfo
     #: The time of day, HH:MM in that zone, after which a payment is not made the same day.
     PAYMENT_DAY_ENDS_AT: datetime.time
+
+    #: Whether people are told about requests outside the service, and through what.
+    #: The rest of this block is required once it is ``telegram`` and unused while it is ``off``.
+    NOTIFICATIONS: Literal["telegram", "off"]
+    TELEGRAM_BOT_TOKEN: str | None = None
+    #: The name of the bot without the at sign: links that start it are built from it.
+    TELEGRAM_BOT_USERNAME: str | None = None
+    #: How the server reaches the Telegram Bot API: straight or through the proxy of the installation.
+    TELEGRAM_EGRESS: Literal["direct", "proxy"] | None = None
+    TELEGRAM_PROXY_URL: str | None = None
+    #: The public address of the web app, as the web app itself is given it: messages link to requests.
+    AUTH_ORIGIN: str | None = None
+    #: The language of the interface, as the web app is given it: messages are written in it.
+    UI_LOCALE: Literal["ru", "en"] | None = None
 
     S3_ENDPOINT_URL: str = Field(min_length=1)
     S3_BUCKET: str = Field(min_length=1)
@@ -95,6 +109,39 @@ class Settings(BaseSettings):
         if not TIME_OF_DAY_RE.fullmatch(value):
             raise ValueError(f"{value!r} is not a time of day written as HH:MM")
         return datetime.time.fromisoformat(value)
+
+    @field_validator(
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_BOT_USERNAME",
+        "TELEGRAM_EGRESS",
+        "TELEGRAM_PROXY_URL",
+        "AUTH_ORIGIN",
+        "UI_LOCALE",
+        mode="before",
+    )
+    @classmethod
+    def empty_is_not_set(cls, value: object) -> object:
+        # A compose file hands an unset variable over as an empty string.
+        return None if value == "" else value
+
+    @field_validator("AUTH_ORIGIN")
+    @classmethod
+    def strip_origin_slash(cls, value: str | None) -> str | None:
+        return value.rstrip("/") if value is not None else None
+
+    @model_validator(mode="after")
+    def check_notifications(self) -> "Settings":
+        if self.NOTIFICATIONS == "off":
+            return self
+        needed = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_EGRESS", "AUTH_ORIGIN", "UI_LOCALE"]
+        if self.TELEGRAM_EGRESS == "proxy":
+            needed.append("TELEGRAM_PROXY_URL")
+        missing = [name for name in needed if getattr(self, name) is None]
+        if missing:
+            raise ValueError(f"{', '.join(missing)}: required while NOTIFICATIONS is 'telegram'")
+        if self.TELEGRAM_EGRESS == "direct" and self.TELEGRAM_PROXY_URL is not None:
+            raise ValueError("TELEGRAM_PROXY_URL: set while TELEGRAM_EGRESS is 'direct'; one of the two is wrong")
+        return self
 
     @property
     def database_url(self) -> URL:

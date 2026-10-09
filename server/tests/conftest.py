@@ -30,6 +30,13 @@ TEST_ENVIRONMENT = {
     "ATTACHMENT_MAX_BYTES": "1024",
     "TIMEZONE": "Europe/Moscow",
     "PAYMENT_DAY_ENDS_AT": "16:30",
+    "NOTIFICATIONS": "telegram",
+    "TELEGRAM_BOT_TOKEN": "1234:test-token",
+    "TELEGRAM_BOT_USERNAME": "zrs_test_bot",
+    "TELEGRAM_EGRESS": "direct",
+    "TELEGRAM_PROXY_URL": "",
+    "AUTH_ORIGIN": "https://zrs.test",
+    "UI_LOCALE": "en",
     "S3_ENDPOINT_URL": "https://storage.test",
     "S3_BUCKET": "zrs",
     "S3_ACCESS_KEY_ID": "test",
@@ -43,12 +50,16 @@ TEST_ENVIRONMENT = {
 }
 os.environ.update(TEST_ENVIRONMENT)
 
+import approck_sqlalchemy_utils.session
 from httpx import ASGITransport, AsyncClient, Response
 
 from internal.app.http.app import create_app
 from internal.config import settings
 from internal.controller.http.deps import get_storage, get_today, get_verifier
 from internal.exceptions import IdentityProviderUnavailable
+from internal.service.notification import NotificationService
+from internal.service.telegram import Blocked, ChatClosed, Started, TelegramUnavailable, Update
+from internal.service.telegram_link import TelegramLinkService
 
 TEST_DATABASE_URL = settings.database_url.render_as_string(hide_password=False)
 
@@ -90,7 +101,8 @@ async def clean_tables(engine: AsyncEngine) -> None:
     async with engine.begin() as connection:
         await connection.execute(
             text(
-                "TRUNCATE payment, attachment, journal_entry, expense_request, reference_item, person "
+                "TRUNCATE notification, telegram_link, telegram_link_code, telegram_cursor, "
+                "payment, attachment, journal_entry, expense_request, reference_item, person "
                 "RESTART IDENTITY CASCADE"
             )
         )
@@ -153,6 +165,47 @@ def verifier() -> FakeVerifier:
 @pytest.fixture
 def storage() -> FakeStorage:
     return FakeStorage()
+
+
+class FakeTelegram:
+    """Stands in for the gateway to the Bot API: keeps what was sent and hands out the updates a test put in."""
+
+    def __init__(self) -> None:
+        self.sent: list[tuple[int, str]] = []
+        self.updates: list[Update] = []
+        self.available = True
+        #: Chats whose people blocked the bot.
+        self.closed: set[int] = set()
+        #: Set by a test to keep a reader inside its call.
+        self.hold: asyncio.Event | None = None
+
+    async def send_message(self, chat_id: int, text: str) -> None:
+        if not self.available:
+            raise TelegramUnavailable("Telegram is unavailable")
+        if chat_id in self.closed:
+            raise ChatClosed("Forbidden: bot was blocked by the user")
+        self.sent.append((chat_id, text))
+
+    async def get_updates(self, offset: int | None, wait_seconds: int) -> list[Update]:
+        if not self.available:
+            raise TelegramUnavailable("Telegram is unavailable")
+        if self.hold is not None:
+            await self.hold.wait()
+        return [update for update in self.updates if offset is None or update.id >= offset]
+
+    def start(self, chat_id: int, parameter: str | None) -> None:
+        """A person starts the bot in their chat."""
+        self.updates.append(Update(len(self.updates) + 100, Started(chat_id, parameter)))
+
+    def block(self, chat_id: int) -> None:
+        """A person blocks the bot."""
+        self.closed.add(chat_id)
+        self.updates.append(Update(len(self.updates) + 100, Blocked(chat_id)))
+
+
+@pytest.fixture
+def telegram() -> FakeTelegram:
+    return FakeTelegram()
 
 
 class Clock:
@@ -254,3 +307,27 @@ class World:
 @pytest.fixture
 def world(client: AsyncClient, verifier: FakeVerifier) -> World:
     return World(client, verifier)
+
+
+async def read_bot(telegram: FakeTelegram) -> bool:
+    """One reading of what the bot was told, as the background task does it."""
+    async with approck_sqlalchemy_utils.session.context_session() as session:
+        return await TelegramLinkService(session).read_updates(telegram, wait_seconds=0)  # type: ignore[arg-type]
+
+
+async def link_telegram(person: Session, telegram: FakeTelegram, chat_id: int) -> None:
+    """The person gets a link in the service and starts the bot with it."""
+    response = await person.post("/v1/telegram-link-codes")
+    assert response.status_code == 201, response.text
+    telegram.start(chat_id, response.json()["url"].split("start=")[1])
+    assert await read_bot(telegram)
+    telegram.sent.clear()
+
+
+async def send_waiting(telegram: FakeTelegram, today: datetime.date) -> None:
+    """One pass of the sender, as the background task does it."""
+    async with approck_sqlalchemy_utils.session.context_session() as session:
+        notifications = NotificationService(session)
+        await notifications.announce_new_periods(today)
+        while await notifications.send_next(telegram, today):  # type: ignore[arg-type]
+            pass

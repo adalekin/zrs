@@ -94,3 +94,65 @@ def test_start_with_an_unknown_timezone_names_the_setting_and_the_value(
 
     with pytest.raises(ConfigurationError, match=rf"TIMEZONE.*{re.escape(repr(value))}"):
         load_settings()
+
+
+def test_notifications_load_with_the_bot_and_the_address_of_the_service() -> None:
+    settings = load_settings()
+
+    assert settings.NOTIFICATIONS == "telegram"
+    assert settings.TELEGRAM_BOT_USERNAME == "zrs_test_bot"
+    assert settings.AUTH_ORIGIN == "https://zrs.test"
+    assert settings.TELEGRAM_PROXY_URL is None
+
+
+def test_notifications_switched_off_need_no_bot(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NOTIFICATIONS", "off")
+    for name in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_EGRESS", "AUTH_ORIGIN", "UI_LOCALE"):
+        monkeypatch.delenv(name)
+
+    assert load_settings().NOTIFICATIONS == "off"
+
+
+def test_start_without_the_notifications_setting_names_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("NOTIFICATIONS")
+
+    with pytest.raises(ConfigurationError, match="NOTIFICATIONS"):
+        load_settings()
+
+
+def test_start_with_an_unknown_way_of_notifying_names_the_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("NOTIFICATIONS", "email")
+
+    with pytest.raises(ConfigurationError, match="NOTIFICATIONS"):
+        load_settings()
+
+
+@pytest.mark.parametrize(
+    "name", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_EGRESS", "AUTH_ORIGIN", "UI_LOCALE"]
+)
+def test_notifications_without_a_setting_of_the_bot_name_it(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    monkeypatch.delenv(name)
+
+    with pytest.raises(ConfigurationError, match=name):
+        load_settings()
+
+
+def test_a_proxy_without_its_address_names_the_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TELEGRAM_EGRESS", "proxy")
+
+    with pytest.raises(ConfigurationError, match="TELEGRAM_PROXY_URL"):
+        load_settings()
+
+
+def test_a_proxy_with_its_address_loads(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TELEGRAM_EGRESS", "proxy")
+    monkeypatch.setenv("TELEGRAM_PROXY_URL", "socks5://proxy.test:1080")
+
+    assert load_settings().TELEGRAM_PROXY_URL == "socks5://proxy.test:1080"
+
+
+def test_a_proxy_address_with_direct_access_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TELEGRAM_PROXY_URL", "socks5://proxy.test:1080")
+
+    with pytest.raises(ConfigurationError, match="TELEGRAM_PROXY_URL"):
+        load_settings()

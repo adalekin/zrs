@@ -7,7 +7,7 @@ from approck_services.fastapi import make_service_type
 from approck_sqlalchemy_utils.mocks import get_session
 from approck_sqlalchemy_utils.transaction import atomic
 from fastapi import Depends
-from sqlalchemy import TIMESTAMP, ColumnElement, Date, and_, cast, func, or_, select, true
+from sqlalchemy import ColumnElement, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -19,7 +19,10 @@ from internal.entity.expense_request import ExpenseRequest, JournalEntry, Paymen
 from internal.exceptions import FieldInvalid, StatusConflict
 from internal.service import transitions
 from internal.service.actor import Actor
+from internal.service.notices import Occasion
+from internal.service.notification import NotificationService
 from internal.service.person import PersonService
+from internal.service.queue import Queue
 from internal.service.reference_item import ReferenceItemService
 from internal.service.request_order import ORDERS
 
@@ -54,53 +57,6 @@ class VisibleTo:
         return or_(*conditions)
 
 
-class AwaitingActionOf:
-    """Specification: the requests that wait for this person's action on the given day.
-
-    The day matters to a payer alone: a recurring request paid for the current period
-    waits for nobody until the next one starts.
-    """
-
-    def __init__(self, actor: Actor, today: datetime.date) -> None:
-        self._actor = actor
-        self._today = today
-
-    def clause(self) -> ColumnElement[bool]:
-        actor_id = self._actor.id
-        conditions = [and_(ExpenseRequest.author_id == actor_id, ExpenseRequest.status == Status.RETURNED.value)]
-
-        if self._actor.has(Role.MODERATOR):
-            conditions.append(and_(ExpenseRequest.moderator_id == actor_id, ExpenseRequest.status == Status.NEW.value))
-        if self._actor.has(Role.FINANCE_DIRECTOR):
-            conditions.append(
-                and_(
-                    ExpenseRequest.status == Status.ESCALATED.value,
-                    ExpenseRequest.author_id != actor_id,
-                    ExpenseRequest.moderator_id != actor_id,
-                )
-            )
-        if self._actor.has(Role.PAYER):
-            # The same rule as the PAYER party of the transitions: assigned to this person or to nobody.
-            conditions.append(
-                and_(
-                    ExpenseRequest.status == Status.APPROVED.value,
-                    or_(ExpenseRequest.payer_id.is_(None), ExpenseRequest.payer_id == actor_id),
-                    # The same rule as ``ExpenseRequest.back_in_queue_on``, said to the database.
-                    or_(
-                        ExpenseRequest.recurrence.is_(None),
-                        ExpenseRequest.paid_on.is_(None),
-                        ExpenseRequest.paid_on < self._period_start(),
-                    ),
-                )
-            )
-
-        return or_(*conditions)
-
-    def _period_start(self) -> ColumnElement[datetime.date]:
-        """The first day of the current period of a request, by its own recurrence."""
-        return cast(func.date_trunc(ExpenseRequest.recurrence, cast(self._today, TIMESTAMP)), Date)
-
-
 class ExpenseRequestService(make_service_type(ExpenseRequest)):
     #: Writes flush; the transaction boundary is ``atomic`` in the public methods,
     #: so a status change and its journal entry commit together or not at all.
@@ -110,6 +66,7 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         super().__init__(session)
         self._person_service = PersonService(session=session)
         self._reference_item_service = ReferenceItemService(session=session)
+        self._notifications = NotificationService(session)
 
     # --- reading ---
 
@@ -139,7 +96,7 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         if status is not None:
             conditions.append(ExpenseRequest.status == status.value)
         if awaiting_me:
-            conditions.append(AwaitingActionOf(actor, today).clause())
+            conditions.append(Queue(today).requests_awaiting(actor))
 
         total = await self.session.scalar(select(func.count()).select_from(ExpenseRequest).where(*conditions))
         statement = (
@@ -160,7 +117,7 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         """Counts and sums per status over the same requests ``page`` would list, however many there are."""
         conditions = [VisibleTo(actor).clause()]
         if awaiting_me:
-            conditions.append(AwaitingActionOf(actor, today).clause())
+            conditions.append(Queue(today).requests_awaiting(actor))
 
         statement = (
             select(ExpenseRequest.status, ExpenseRequest.currency, func.count(), func.sum(ExpenseRequest.amount))
@@ -177,7 +134,7 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
 
     # --- writing ---
 
-    async def create(self, actor: Actor, dto: RequestCreate) -> ExpenseRequest:
+    async def create(self, actor: Actor, dto: RequestCreate, *, today: datetime.date) -> ExpenseRequest:
         if not actor.has(Role.REQUESTER):
             raise Forbidden("Only a requester may submit a request")
 
@@ -189,10 +146,11 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             self.session.add(request)
             await self.session.flush()
             self._record(request, actor, status_changed=True, payer_changed=False, comment=None)
+            await self._announce(request, actor, today, awaited_before=frozenset())
 
         return await self.get(actor, request.id)
 
-    async def update(self, actor: Actor, id_: int, dto: RequestUpdate) -> ExpenseRequest:
+    async def update(self, actor: Actor, id_: int, dto: RequestUpdate, *, today: datetime.date) -> ExpenseRequest:
         values = dto.model_dump(exclude_unset=True)
 
         async with atomic(self.session):
@@ -207,8 +165,11 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
                     raise FieldInvalid(field, "required", "The field must not be empty")
             await self._validate(actor, values, creating=False)
 
+            awaited_before = await self._notifications.awaited(request, today)
             for field, value in values.items():
                 setattr(request, field, value)
+            # A new moderator has the request in their queue from now on.
+            await self._announce(request, actor, today, awaited_before=awaited_before)
 
         return await self.get(actor, id_)
 
@@ -220,12 +181,14 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         *,
         comment: str | None,
         parameters: dict[str, Any],
+        today: datetime.date,
     ) -> ExpenseRequest:
         """Apply an action. ``parameters`` are the fields of the body the caller gave, besides the comment."""
         async with atomic(self.session):
             request = await self._lock(actor, id_)
             transition = transitions.resolve(actor, request, action)
             transitions.check_parameters(action, parameters)
+            awaited_before = await self._notifications.awaited(request, today)
 
             payer_before = request.payer_id
             if "payer_id" in parameters:
@@ -233,11 +196,13 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
                     await self._validate_person("payer_id", parameters["payer_id"], Role.PAYER, "not_a_payer")
                 request.payer_id = parameters["payer_id"]
             payer_changed = request.payer_id != payer_before
+            payment: Payment | None = None
             if action is Action.PAY:
                 paid_on: datetime.date = parameters["paid_on"]
-                self.session.add(
-                    Payment(request_id=request.id, person_id=actor.id, paid_on=paid_on, amount=parameters["amount"])
+                payment = Payment(
+                    request_id=request.id, person_id=actor.id, paid_on=paid_on, amount=parameters["amount"]
                 )
+                self.session.add(payment)
                 # The latest date, whatever order the payments were marked in.
                 request.paid_on = paid_on if request.paid_on is None else max(request.paid_on, paid_on)
                 if transition.target is Status.PAID:
@@ -252,17 +217,29 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             status_changed = transition.target is not transition.source
             request.status = transition.target.value
             # An action that changed nothing leaves an entry only when it carries a comment.
+            entry: JournalEntry | None = None
             if status_changed or payer_changed or comment is not None:
-                self._record(
+                entry = self._record(
                     request, actor, status_changed=status_changed, payer_changed=payer_changed, comment=comment
                 )
+            await self._announce(
+                request,
+                actor,
+                today,
+                awaited_before=awaited_before,
+                became=transition.target if status_changed else None,
+                journal_entry=entry,
+                payment=payment,
+            )
 
         return await self.get(actor, id_)
 
-    async def comment(self, actor: Actor, id_: int, comment: str) -> ExpenseRequest:
+    async def comment(self, actor: Actor, id_: int, comment: str, *, today: datetime.date) -> ExpenseRequest:
         async with atomic(self.session):
             request = await self.get(actor, id_)
-            self._record(request, actor, status_changed=False, payer_changed=False, comment=comment)
+            entry = self._record(request, actor, status_changed=False, payer_changed=False, comment=comment)
+            awaited = await self._notifications.awaited(request, today)
+            await self._announce(request, actor, today, awaited_before=awaited, journal_entry=entry, commented=True)
 
         return await self.get(actor, id_)
 
@@ -287,16 +264,46 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
 
     def _record(
         self, request: ExpenseRequest, actor: Actor, *, status_changed: bool, payer_changed: bool, comment: str | None
+    ) -> JournalEntry:
+        entry = JournalEntry(
+            request_id=request.id,
+            person_id=actor.id,
+            status=request.status,
+            status_changed=status_changed,
+            payer_changed=payer_changed,
+            payer_id=request.payer_id if payer_changed else None,
+            comment=comment,
+        )
+        self.session.add(entry)
+        return entry
+
+    async def _announce(
+        self,
+        request: ExpenseRequest,
+        actor: Actor,
+        today: datetime.date,
+        *,
+        awaited_before: frozenset[int],
+        became: Status | None = None,
+        journal_entry: JournalEntry | None = None,
+        payment: Payment | None = None,
+        commented: bool = False,
     ) -> None:
-        self.session.add(
-            JournalEntry(
-                request_id=request.id,
-                person_id=actor.id,
-                status=request.status,
-                status_changed=status_changed,
-                payer_changed=payer_changed,
-                payer_id=request.payer_id if payer_changed else None,
-                comment=comment,
+        """Write the messages about what has just happened to the request, in the same transaction."""
+        if not self._notifications.enabled:
+            return
+        # The messages point at the entry and the payment: both need their ids.
+        await self.session.flush()
+        await self._notifications.announce(
+            Occasion(
+                request=request,
+                actor_id=actor.id,
+                awaited_before=awaited_before,
+                awaited_now=await self._notifications.awaited(request, today),
+                became=became,
+                journal_entry=journal_entry,
+                payment=payment,
+                commented=commented,
             )
         )
 

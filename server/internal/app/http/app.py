@@ -3,6 +3,7 @@ from approck_fastapi_utils.exception_handlers import register_exception_handlers
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 
+from internal.app.http.background import lifespan
 from internal.config import settings
 from internal.controller.http.router import api_router
 from internal.exceptions import (
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
         title="ZRS",
         description="Expense requests: submission, approval and payment tracking",
         version="0.1.0",
+        lifespan=lifespan,
     )
     app.include_router(api_router)
     app.dependency_overrides.setdefault(*approck_sqlalchemy_utils.session.override_session)
