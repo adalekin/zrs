@@ -1,11 +1,14 @@
+import datetime
 import re
 from typing import Annotated
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import Field, ValidationError, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy import URL
 
 CURRENCY_CODE_RE = re.compile(r"^[A-Z]{3}$")
+TIME_OF_DAY_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 
 class ConfigurationError(RuntimeError):
@@ -32,6 +35,11 @@ class Settings(BaseSettings):
 
     CURRENCIES: Annotated[list[str], NoDecode]
     ATTACHMENT_MAX_BYTES: int = Field(gt=0)
+
+    #: Where the people who make the payments work: a name of the IANA time zone database.
+    TIMEZONE: ZoneInfo
+    #: The time of day, HH:MM in that zone, after which a payment is not made the same day.
+    PAYMENT_DAY_ENDS_AT: datetime.time
 
     S3_ENDPOINT_URL: str = Field(min_length=1)
     S3_BUCKET: str = Field(min_length=1)
@@ -68,6 +76,25 @@ class Settings(BaseSettings):
         if len(set(value)) != len(value):
             raise ValueError("currency codes must not repeat")
         return value
+
+    @field_validator("TIMEZONE", mode="before")
+    @classmethod
+    def find_timezone(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        try:
+            return ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(f"{value!r} is not a time zone of the IANA database") from exc
+
+    @field_validator("PAYMENT_DAY_ENDS_AT", mode="before")
+    @classmethod
+    def read_time_of_day(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        if not TIME_OF_DAY_RE.fullmatch(value):
+            raise ValueError(f"{value!r} is not a time of day written as HH:MM")
+        return datetime.time.fromisoformat(value)
 
     @property
     def database_url(self) -> URL:

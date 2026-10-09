@@ -28,6 +28,8 @@ TEST_ENVIRONMENT = {
     "ROLE_PAYER": "payer",
     "CURRENCIES": "RUB,USD",
     "ATTACHMENT_MAX_BYTES": "1024",
+    "TIMEZONE": "Europe/Moscow",
+    "PAYMENT_DAY_ENDS_AT": "16:30",
     "S3_ENDPOINT_URL": "https://storage.test",
     "S3_BUCKET": "zrs",
     "S3_ACCESS_KEY_ID": "test",

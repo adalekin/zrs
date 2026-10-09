@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query
 
 from internal.config import settings
 from internal.controller.http.deps import get_actor
-from internal.dto.person import MeRead, PersonRead
+from internal.dto.person import MeRead, PaymentDayRead, PersonRead
 from internal.entity.enums import Role
 from internal.service.actor import Actor
 from internal.service.person import PersonService
@@ -19,6 +19,9 @@ async def me(actor: Actor = Depends(get_actor)) -> MeRead:
         roles=sorted(actor.roles),
         currencies=settings.CURRENCIES,
         attachment_max_bytes=settings.ATTACHMENT_MAX_BYTES,
+        payment_day=PaymentDayRead(
+            ends_at=settings.PAYMENT_DAY_ENDS_AT.strftime("%H:%M"), timezone=settings.TIMEZONE.key
+        ),
     )
 
 

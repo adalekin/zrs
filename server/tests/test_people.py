@@ -52,6 +52,7 @@ async def test_me_reports_the_person_their_roles_and_the_installation_lists(worl
     assert body["roles"] == ["moderator", "requester"]
     assert body["currencies"] == ["RUB", "USD"]
     assert body["attachment_max_bytes"] == 1024
+    assert body["payment_day"] == {"ends_at": "16:30", "timezone": "Europe/Moscow"}
 
 
 async def test_a_moderator_appears_in_the_list_after_the_first_sign_in(world: World) -> None:
