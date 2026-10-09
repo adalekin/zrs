@@ -32,8 +32,12 @@ const payer = computed(() => holderOf(props.request.status) === 'payer' ? props.
       <ReferenceValue v-if="request.payment_form" :item="request.payment_form" />
     </div>
     <div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
-      <span class="truncate">
-        <template v-if="mine"><span class="text-primary font-medium">{{ $t('holder.you') }}</span> · </template>{{ request.author.name }} · {{ $t('board.number', { id: request.id }) }}
+      <!-- A long name gives way, the number does not: it is what people call the request by. -->
+      <span class="flex min-w-0">
+        <span class="truncate">
+          <template v-if="mine"><span class="text-primary font-medium">{{ $t('holder.you') }}</span> · </template>{{ request.author.name }}
+        </span>
+        <span class="shrink-0 whitespace-pre"> · {{ $t('board.number', { id: request.id }) }}</span>
       </span>
       <span v-if="request.deadline" class="shrink-0" :class="{ 'text-destructive font-medium': overdue }">
         {{ $t('board.until', { day: format.day(request.deadline) }) }}
