@@ -87,6 +87,16 @@
       "clientRoles": { "zrs-web": ["payer"] }
     },
     {
+      "username": "frank",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Frank",
+      "lastName": "Payer",
+      "email": "frank@zrs.test",
+      "credentials": [{ "type": "password", "value": "frank", "temporary": false }],
+      "clientRoles": { "zrs-web": ["payer"] }
+    },
+    {
       "username": "eve",
       "enabled": true,
       "emailVerified": true,

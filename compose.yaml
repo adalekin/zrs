@@ -2,7 +2,7 @@
 #
 #   web        http://localhost:3300
 #   sign-in    alice (requester), bob (requester, moderator), carol (finance director),
-#              dave (payer), eve (no role); the password equals the user name
+#              dave and frank (payers), eve (no role); the password equals the user name
 #
 # Everything here is for development: fixed credentials, a test identity provider, data in local volumes.
 # The production example lives in deploy/compose.yaml.
