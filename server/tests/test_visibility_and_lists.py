@@ -106,7 +106,7 @@ async def test_the_status_filter(world: World, lists: dict[str, int]) -> None:
     paid = await world.submit(author, lists, moderator)
     await world.submit(author, lists, moderator)
     await moderator.post(f"/v1/requests/{paid['id']}/approve")
-    await payer.post(f"/v1/requests/{paid['id']}/pay", json={"paid_on": "2026-10-01"})
+    await payer.post(f"/v1/requests/{paid['id']}/pay", json={"paid_on": "2026-10-01", "amount": "1590.00"})
 
     assert await ids(director, status="paid") == [paid["id"]]
 

@@ -28,7 +28,7 @@ async def scene(world: World) -> Session:
     await world.submit(author, lists, moderator, **normal)
     paid = await world.submit(author, lists, moderator, **first, deadline="2026-10-01")
     await moderator.post(f"/v1/requests/{paid['id']}/approve", json={})
-    await payer.post(f"/v1/requests/{paid['id']}/pay", json={"paid_on": "2026-10-02"})
+    await payer.post(f"/v1/requests/{paid['id']}/pay", json={"paid_on": "2026-10-02", "amount": "1590.00"})
     return director
 
 

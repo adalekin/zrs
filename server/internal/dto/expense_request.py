@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from internal.dto.person import PersonRead
 from internal.dto.reference_item import ReferenceItemRead
 from internal.entity.enums import Action, Party, Status
+from internal.entity.recurrence import Recurrence
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
@@ -25,10 +26,13 @@ class RequestCreate(BaseModel):
     solution: Text
     amount: Amount = Field(description="Decimal number as a string, up to four fractional digits")
     currency: CurrencyCode
-    payment_period: ShortText
+    payment_period: ShortText | None = Field(
+        default=None, description="What the recurrence does not say about when to pay, in the author's words"
+    )
     payment_form_id: int | None = None
     deadline: datetime.date | None = None
     payer_id: int | None = None
+    recurrence: Recurrence | None = Field(default=None, description="How often the request is paid; empty for once")
 
 
 class RequestUpdate(BaseModel):
@@ -43,11 +47,15 @@ class RequestUpdate(BaseModel):
     payment_form_id: int | None = None
     deadline: datetime.date | None = None
     payer_id: int | None = None
+    recurrence: Recurrence | None = None
 
 
 class ActionRequest(BaseModel):
     comment: Text | None = None
     paid_on: datetime.date | None = Field(default=None, description="Payment date, required by the pay action")
+    amount: Amount | None = Field(
+        default=None, description="The amount paid, in the currency of the request; required by the pay action"
+    )
     payer_id: int | None = Field(
         default=None,
         description=(
@@ -71,6 +79,16 @@ class JournalEntryRead(BaseModel):
     payer_changed: bool
     payer: PersonRead | None
     comment: str | None
+    created_at: datetime.datetime
+
+
+class PaymentRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    person: PersonRead
+    paid_on: datetime.date
+    amount: Decimal
     created_at: datetime.datetime
 
 
@@ -99,9 +117,17 @@ class RequestRead(BaseModel):
     solution: str
     amount: Decimal
     currency: str
-    payment_period: str
+    payment_period: str | None
+    recurrence: Recurrence | None
     deadline: datetime.date | None
-    paid_on: datetime.date | None
+    paid_on: datetime.date | None = Field(description="The date of the latest payment")
+    next_payment_from: datetime.date | None = Field(
+        default=None,
+        description=(
+            "The first day of the next period of a recurring request that is paid for this one: "
+            "the day it comes back to the queue of its payer"
+        ),
+    )
     rejected_by: PersonRead | None = Field(description="Who rejected or cancelled the request")
     rejected_as: Party | None = Field(description="What that person was to the request when they did")
     created_at: datetime.datetime
@@ -111,6 +137,7 @@ class RequestRead(BaseModel):
 class RequestDetail(RequestRead):
     attachments: list[AttachmentRead]
     journal: list[JournalEntryRead]
+    payments: list[PaymentRead] = Field(description="The payments of the request, the latest first")
     actions: list[Action] = Field(description="Actions the current person may apply right now")
     can_edit: bool = Field(description="Whether the current person may change fields and attachments right now")
 

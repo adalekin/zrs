@@ -1,3 +1,4 @@
+import datetime
 from collections.abc import Sequence
 from typing import Any
 
@@ -6,7 +7,7 @@ from approck_services.fastapi import make_service_type
 from approck_sqlalchemy_utils.mocks import get_session
 from approck_sqlalchemy_utils.transaction import atomic
 from fastapi import Depends
-from sqlalchemy import ColumnElement, and_, func, or_, select, true
+from sqlalchemy import TIMESTAMP, ColumnElement, Date, and_, cast, func, or_, select, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -14,7 +15,7 @@ from internal.config import settings
 from internal.dto.expense_request import RequestCreate, RequestUpdate
 from internal.dto.request_totals import AmountTotal, RequestTotals
 from internal.entity.enums import Action, ReferenceKind, RequestSort, Role, Status
-from internal.entity.expense_request import ExpenseRequest, JournalEntry
+from internal.entity.expense_request import ExpenseRequest, JournalEntry, Payment
 from internal.exceptions import FieldInvalid, StatusConflict
 from internal.service import transitions
 from internal.service.actor import Actor
@@ -29,7 +30,7 @@ REFERENCE_FIELDS: dict[str, tuple[ReferenceKind, bool]] = {
     "payment_form_id": (ReferenceKind.PAYMENT_FORM, False),
 }
 #: Fields that may be cleared by an update.
-NULLABLE_FIELDS = frozenset({"payment_form_id", "deadline", "payer_id"})
+NULLABLE_FIELDS = frozenset({"payment_form_id", "deadline", "payer_id", "recurrence", "payment_period"})
 
 
 class VisibleTo:
@@ -54,10 +55,15 @@ class VisibleTo:
 
 
 class AwaitingActionOf:
-    """Specification: the requests that wait for this person's action."""
+    """Specification: the requests that wait for this person's action on the given day.
 
-    def __init__(self, actor: Actor) -> None:
+    The day matters to a payer alone: a recurring request paid for the current period
+    waits for nobody until the next one starts.
+    """
+
+    def __init__(self, actor: Actor, today: datetime.date) -> None:
         self._actor = actor
+        self._today = today
 
     def clause(self) -> ColumnElement[bool]:
         actor_id = self._actor.id
@@ -79,10 +85,20 @@ class AwaitingActionOf:
                 and_(
                     ExpenseRequest.status == Status.APPROVED.value,
                     or_(ExpenseRequest.payer_id.is_(None), ExpenseRequest.payer_id == actor_id),
+                    # The same rule as ``ExpenseRequest.back_in_queue_on``, said to the database.
+                    or_(
+                        ExpenseRequest.recurrence.is_(None),
+                        ExpenseRequest.paid_on.is_(None),
+                        ExpenseRequest.paid_on < self._period_start(),
+                    ),
                 )
             )
 
         return or_(*conditions)
+
+    def _period_start(self) -> ColumnElement[datetime.date]:
+        """The first day of the current period of a request, by its own recurrence."""
+        return cast(func.date_trunc(ExpenseRequest.recurrence, cast(self._today, TIMESTAMP)), Date)
 
 
 class ExpenseRequestService(make_service_type(ExpenseRequest)):
@@ -114,6 +130,7 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         *,
         status: Status | None,
         awaiting_me: bool,
+        today: datetime.date,
         sort: RequestSort,
         page: int,
         size: int,
@@ -122,24 +139,28 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         if status is not None:
             conditions.append(ExpenseRequest.status == status.value)
         if awaiting_me:
-            conditions.append(AwaitingActionOf(actor).clause())
+            conditions.append(AwaitingActionOf(actor, today).clause())
 
         total = await self.session.scalar(select(func.count()).select_from(ExpenseRequest).where(*conditions))
         statement = (
             select(ExpenseRequest)
             .where(*conditions)
-            .options(lazyload(ExpenseRequest.journal), lazyload(ExpenseRequest.attachments))
+            .options(
+                lazyload(ExpenseRequest.journal),
+                lazyload(ExpenseRequest.attachments),
+                lazyload(ExpenseRequest.payments),
+            )
             .order_by(*ORDERS[sort])
             .limit(size)
             .offset((page - 1) * size)
         )
         return await self._find(statement), total or 0
 
-    async def totals(self, actor: Actor, *, awaiting_me: bool) -> list[RequestTotals]:
+    async def totals(self, actor: Actor, *, awaiting_me: bool, today: datetime.date) -> list[RequestTotals]:
         """Counts and sums per status over the same requests ``page`` would list, however many there are."""
         conditions = [VisibleTo(actor).clause()]
         if awaiting_me:
-            conditions.append(AwaitingActionOf(actor).clause())
+            conditions.append(AwaitingActionOf(actor, today).clause())
 
         statement = (
             select(ExpenseRequest.status, ExpenseRequest.currency, func.count(), func.sum(ExpenseRequest.amount))
@@ -212,10 +233,17 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
                     await self._validate_person("payer_id", parameters["payer_id"], Role.PAYER, "not_a_payer")
                 request.payer_id = parameters["payer_id"]
             payer_changed = request.payer_id != payer_before
-            if "paid_on" in parameters:
-                # Whoever marks the payment is the payer of the request from now on.
-                request.payer_id = actor.id
-                request.paid_on = parameters["paid_on"]
+            if action is Action.PAY:
+                paid_on: datetime.date = parameters["paid_on"]
+                self.session.add(
+                    Payment(request_id=request.id, person_id=actor.id, paid_on=paid_on, amount=parameters["amount"])
+                )
+                # The latest date, whatever order the payments were marked in.
+                request.paid_on = paid_on if request.paid_on is None else max(request.paid_on, paid_on)
+                if transition.target is Status.PAID:
+                    # Whoever makes the one payment of a request is its payer from now on. A recurring
+                    # request keeps the payer it has: left to any payer, it stays with all of them.
+                    request.payer_id = actor.id
 
             if transition.target is Status.REJECTED:
                 request.rejected_by_id = actor.id

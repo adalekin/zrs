@@ -74,7 +74,7 @@ async def test_a_payer_comments_without_changing_the_status(scene: Scene) -> Non
 
 async def test_the_author_comments_on_a_paid_request(scene: Scene) -> None:
     await scene.moderator.post(f"{scene.url}/approve")
-    await scene.payer.post(f"{scene.url}/pay", json={"paid_on": "2026-10-01"})
+    await scene.payer.post(f"{scene.url}/pay", json={"paid_on": "2026-10-01", "amount": "1590.00"})
 
     response = await scene.author.post(f"{scene.url}/comments", json={"comment": "Received, thanks"})
 

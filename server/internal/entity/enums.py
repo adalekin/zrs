@@ -26,6 +26,7 @@ class Action(StrEnum):
     CANCEL = "cancel"
     PAY = "pay"
     REASSIGN = "reassign"
+    FINISH = "finish"
 
 
 class Party(StrEnum):

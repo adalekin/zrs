@@ -43,7 +43,7 @@ async def test_a_requester_submits_a_request(
     assert body["payer"] is None
 
 
-@pytest.mark.parametrize("field", ["situation", "solution", "amount", "currency", "payment_period", "moderator_id"])
+@pytest.mark.parametrize("field", ["situation", "solution", "amount", "currency", "moderator_id"])
 async def test_a_request_without_a_required_field_names_the_field(
     world: World, lists: dict[str, int], author: Session, moderator: Session, field: str
 ) -> None:

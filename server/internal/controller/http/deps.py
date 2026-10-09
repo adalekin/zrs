@@ -1,3 +1,4 @@
+import datetime
 from functools import lru_cache
 
 from approck_fastapi_utils.exceptions import Forbidden, Unauthorized
@@ -42,6 +43,11 @@ def get_storage() -> AttachmentStorage:
         bucket=settings.S3_BUCKET,
         endpoint_url=settings.S3_ENDPOINT_URL,
     )
+
+
+def get_today() -> datetime.date:
+    """The calendar day on the clock of the installation: periods of payment are counted by it."""
+    return datetime.datetime.now(settings.TIMEZONE).date()
 
 
 async def get_actor(

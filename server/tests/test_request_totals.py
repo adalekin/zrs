@@ -60,7 +60,7 @@ async def test_a_request_is_counted_in_the_status_it_has_now(world: World) -> No
     await world.submit(author, lists, moderator, amount="1000.00")
     await moderator.post(f"/v1/requests/{approved['id']}/approve", json={})
     await moderator.post(f"/v1/requests/{paid['id']}/approve", json={})
-    await payer.post(f"/v1/requests/{paid['id']}/pay", json={"paid_on": "2026-10-08"})
+    await payer.post(f"/v1/requests/{paid['id']}/pay", json={"paid_on": "2026-10-08", "amount": "1590.00"})
 
     totals = await read(director)
 

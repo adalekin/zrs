@@ -4,6 +4,7 @@ Every rule of the form "who may do what from which status" lives here and nowher
 the API applies actions through this table and reports available actions from it.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,6 +15,25 @@ from internal.entity.expense_request import ExpenseRequest
 from internal.exceptions import FieldInvalid, StatusConflict
 from internal.service.actor import Actor
 
+#: A condition on the request itself, beyond its status and who acts.
+Guard = Callable[[ExpenseRequest], bool]
+
+
+def paid_once(request: ExpenseRequest) -> bool:
+    return not request.is_recurring
+
+
+def recurring(request: ExpenseRequest) -> bool:
+    return request.is_recurring
+
+
+def recurring_with_a_payment(request: ExpenseRequest) -> bool:
+    return request.is_recurring and request.has_payment
+
+
+def without_a_payment(request: ExpenseRequest) -> bool:
+    return not request.has_payment
+
 
 @dataclass(frozen=True)
 class Transition:
@@ -21,6 +41,11 @@ class Transition:
     source: Status
     target: Status
     party: Party
+    #: The row applies only to a request the guard holds for.
+    guard: Guard | None = None
+
+    def allows(self, request: ExpenseRequest) -> bool:
+        return self.guard is None or self.guard(request)
 
 
 TRANSITIONS: tuple[Transition, ...] = (
@@ -28,7 +53,8 @@ TRANSITIONS: tuple[Transition, ...] = (
     Transition(Action.CANCEL, Status.NEW, Status.REJECTED, Party.AUTHOR),
     Transition(Action.CANCEL, Status.RETURNED, Status.REJECTED, Party.AUTHOR),
     Transition(Action.CANCEL, Status.ESCALATED, Status.REJECTED, Party.AUTHOR),
-    Transition(Action.CANCEL, Status.APPROVED, Status.REJECTED, Party.AUTHOR),
+    # Money that has been paid cannot be called back by cancelling the request.
+    Transition(Action.CANCEL, Status.APPROVED, Status.REJECTED, Party.AUTHOR, without_a_payment),
     Transition(Action.APPROVE, Status.NEW, Status.APPROVED, Party.MODERATOR),
     Transition(Action.ESCALATE, Status.NEW, Status.ESCALATED, Party.MODERATOR),
     Transition(Action.RETURN, Status.NEW, Status.RETURNED, Party.MODERATOR),
@@ -36,7 +62,11 @@ TRANSITIONS: tuple[Transition, ...] = (
     Transition(Action.APPROVE, Status.ESCALATED, Status.APPROVED, Party.FINANCE_DIRECTOR),
     Transition(Action.RETURN, Status.ESCALATED, Status.RETURNED, Party.FINANCE_DIRECTOR),
     Transition(Action.REJECT, Status.ESCALATED, Status.REJECTED, Party.FINANCE_DIRECTOR),
-    Transition(Action.PAY, Status.APPROVED, Status.PAID, Party.PAYER),
+    Transition(Action.PAY, Status.APPROVED, Status.PAID, Party.PAYER, paid_once),
+    # A recurring request is approved once and paid every period, so a payment leaves it approved.
+    Transition(Action.PAY, Status.APPROVED, Status.APPROVED, Party.PAYER, recurring),
+    Transition(Action.FINISH, Status.APPROVED, Status.PAID, Party.AUTHOR, recurring_with_a_payment),
+    Transition(Action.FINISH, Status.APPROVED, Status.PAID, Party.FINANCE_STEWARD, recurring_with_a_payment),
     Transition(Action.REASSIGN, Status.APPROVED, Status.APPROVED, Party.FINANCE_STEWARD),
 )
 
@@ -52,9 +82,9 @@ class Parameter:
 
 
 #: The parameters each action takes besides the comment. A field given to an action that does
-#: not list it is refused: a payment date belongs to paying, a payer to approving and reassigning.
+#: not list it is refused: a payment date and an amount belong to paying, a payer to approving and reassigning.
 ACTION_PARAMETERS: dict[Action, dict[str, Parameter]] = {
-    Action.PAY: {"paid_on": Parameter(required=True)},
+    Action.PAY: {"paid_on": Parameter(required=True), "amount": Parameter(required=True)},
     Action.APPROVE: {"payer_id": Parameter()},
     Action.REASSIGN: {"payer_id": Parameter(required=True, nullable=True)},
 }
@@ -95,7 +125,8 @@ def resolve(actor: Actor, request: ExpenseRequest, action: Action) -> Transition
     """Find the transition this actor may apply now.
 
     Raises ``Forbidden`` when the table has no row giving this action to the actor in
-    any status, and ``StatusConflict`` when such a row exists for another status.
+    any status, and ``StatusConflict`` when such a row exists for another status or for
+    a request its guard does not hold for.
     """
     actor_parties = parties(actor, request)
     candidates = [row for row in TRANSITIONS if row.action == action and row.party in actor_parties]
@@ -105,7 +136,7 @@ def resolve(actor: Actor, request: ExpenseRequest, action: Action) -> Transition
 
     status = Status(request.status)
     for row in candidates:
-        if row.source == status:
+        if row.source == status and row.allows(request):
             return row
 
     raise StatusConflict(status)
@@ -129,7 +160,11 @@ def check_parameters(action: Action, given: dict[str, Any]) -> None:
 def available_actions(actor: Actor, request: ExpenseRequest) -> list[Action]:
     actor_parties = parties(actor, request)
     status = Status(request.status)
-    return [row.action for row in TRANSITIONS if row.source == status and row.party in actor_parties]
+    actions = [
+        row.action for row in TRANSITIONS if row.source == status and row.party in actor_parties and row.allows(request)
+    ]
+    # The author who is a finance director too is given an action by two rows.
+    return list(dict.fromkeys(actions))
 
 
 def can_edit(actor: Actor, request: ExpenseRequest) -> bool:

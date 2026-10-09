@@ -177,7 +177,9 @@ async def test_a_payment_date_cannot_be_given_to_another_action(cast: Cast) -> N
 async def test_the_assigned_payer_marks_the_payment(cast: Cast) -> None:
     request = await cast.approved(payer_id=cast.payer.id)
 
-    response = await cast.payer.post(f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09"})
+    response = await cast.payer.post(
+        f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09", "amount": "1590.00"}
+    )
 
     assert response.status_code == 200
     assert response.json()["status"] == "paid"
@@ -187,7 +189,9 @@ async def test_the_assigned_payer_marks_the_payment(cast: Cast) -> None:
 async def test_another_payer_cannot_mark_the_payment_of_an_assigned_request(cast: Cast) -> None:
     request = await cast.approved(payer_id=cast.payer.id)
 
-    response = await cast.other_payer.post(f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09"})
+    response = await cast.other_payer.post(
+        f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09", "amount": "1590.00"}
+    )
 
     assert response.status_code == 403
     after = await cast.read(request)
@@ -198,7 +202,9 @@ async def test_another_payer_cannot_mark_the_payment_of_an_assigned_request(cast
 async def test_any_payer_marks_the_payment_of_a_request_assigned_to_nobody(cast: Cast) -> None:
     request = await cast.approved()
 
-    response = await cast.other_payer.post(f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09"})
+    response = await cast.other_payer.post(
+        f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09", "amount": "1590.00"}
+    )
 
     assert response.json()["status"] == "paid"
     assert response.json()["payer"]["id"] == cast.other_payer.id
@@ -271,7 +277,9 @@ async def test_the_finance_director_leaves_an_approved_request_to_any_payer(cast
 
     assert response.json()["payer"] is None
     assert await queue(cast.other_payer) == [request["id"]]
-    paid = await cast.other_payer.post(f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09"})
+    paid = await cast.other_payer.post(
+        f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09", "amount": "1590.00"}
+    )
     assert paid.json()["status"] == "paid"
 
 
@@ -290,7 +298,7 @@ async def test_a_finance_director_reassigns_their_own_request(cast: Cast) -> Non
 async def test_a_request_that_is_not_approved_is_not_reassigned(cast: Cast, status: str) -> None:
     request = await cast.submit() if status == "new" else await cast.approved()
     if status == "paid":
-        await cast.payer.post(f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09"})
+        await cast.payer.post(f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09", "amount": "1590.00"})
     payer_before = (await cast.read(request))["payer"]
 
     response = await cast.director.post(
@@ -420,7 +428,9 @@ async def test_the_author_naming_a_payer_and_the_payment_change_no_payer_in_the_
     request = await cast.submit(payer_id=cast.payer.id)
     await cast.moderator.post(f"/v1/requests/{request['id']}/approve", json={})
 
-    paid = await cast.payer.post(f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09"})
+    paid = await cast.payer.post(
+        f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09", "amount": "1590.00"}
+    )
 
     assert paid.status_code == 200, paid.text
     assert [payer_change(entry) for entry in paid.json()["journal"]] == [(False, None)] * 3

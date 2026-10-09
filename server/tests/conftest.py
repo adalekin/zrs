@@ -47,7 +47,7 @@ from httpx import ASGITransport, AsyncClient, Response
 
 from internal.app.http.app import create_app
 from internal.config import settings
-from internal.controller.http.deps import get_storage, get_verifier
+from internal.controller.http.deps import get_storage, get_today, get_verifier
 from internal.exceptions import IdentityProviderUnavailable
 
 TEST_DATABASE_URL = settings.database_url.render_as_string(hide_password=False)
@@ -89,7 +89,10 @@ async def engine(migrated_schema: None) -> AsyncIterator[AsyncEngine]:
 async def clean_tables(engine: AsyncEngine) -> None:
     async with engine.begin() as connection:
         await connection.execute(
-            text("TRUNCATE attachment, journal_entry, expense_request, reference_item, person RESTART IDENTITY CASCADE")
+            text(
+                "TRUNCATE payment, attachment, journal_entry, expense_request, reference_item, person "
+                "RESTART IDENTITY CASCADE"
+            )
         )
 
 
@@ -152,11 +155,25 @@ def storage() -> FakeStorage:
     return FakeStorage()
 
 
+class Clock:
+    """The calendar day of the installation, set by a test."""
+
+    def __init__(self) -> None:
+        # A Friday.
+        self.today = datetime.date(2026, 10, 9)
+
+
+@pytest.fixture
+def clock() -> Clock:
+    return Clock()
+
+
 @pytest_asyncio.fixture
-async def client(verifier: FakeVerifier, storage: FakeStorage) -> AsyncIterator[AsyncClient]:
+async def client(verifier: FakeVerifier, storage: FakeStorage, clock: Clock) -> AsyncIterator[AsyncClient]:
     app = create_app()
     app.dependency_overrides[get_verifier] = lambda: verifier
     app.dependency_overrides[get_storage] = lambda: storage
+    app.dependency_overrides[get_today] = lambda: clock.today
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as http_client:
         yield http_client
 

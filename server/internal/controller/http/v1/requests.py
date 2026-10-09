@@ -1,13 +1,15 @@
+import datetime
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query, Response, UploadFile, status
 
-from internal.controller.http.deps import get_actor, get_storage
+from internal.controller.http.deps import get_actor, get_storage, get_today
 from internal.dto.expense_request import (
     ActionRequest,
     AttachmentRead,
     CommentCreate,
     JournalEntryRead,
+    PaymentRead,
     RequestCreate,
     RequestDetail,
     RequestPage,
@@ -25,12 +27,18 @@ from internal.service.storage import AttachmentStorage
 router = APIRouter(prefix="/requests", tags=["requests"])
 
 
-def _detail(actor: Actor, request: ExpenseRequest) -> RequestDetail:
-    # Not a 1:1 projection of the entity: the actions and the edit flag depend on who asks.
+def _read(request: ExpenseRequest, today: datetime.date) -> RequestRead:
+    # Not a 1:1 projection of the entity: when the next payment is due depends on the day.
+    return RequestRead.model_validate(request).model_copy(update={"next_payment_from": request.back_in_queue_on(today)})
+
+
+def _detail(actor: Actor, request: ExpenseRequest, today: datetime.date) -> RequestDetail:
+    # The actions and the edit flag depend on who asks.
     return RequestDetail(
-        **RequestRead.model_validate(request).model_dump(),
+        **_read(request, today).model_dump(),
         attachments=[AttachmentRead.model_validate(attachment) for attachment in request.attachments],
         journal=[JournalEntryRead.model_validate(entry) for entry in request.journal],
+        payments=[PaymentRead.model_validate(payment) for payment in request.payments],
         actions=transitions.available_actions(actor, request),
         can_edit=transitions.can_edit(actor, request),
     )
@@ -50,11 +58,14 @@ async def list_requests(
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     actor: Actor = Depends(get_actor),
+    today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestPage:
-    items, total = await service.page(actor, status=status_, awaiting_me=awaiting_me, sort=sort, page=page, size=size)
+    items, total = await service.page(
+        actor, status=status_, awaiting_me=awaiting_me, today=today, sort=sort, page=page, size=size
+    )
     return RequestPage(
-        items=[RequestRead.model_validate(item) for item in items],
+        items=[_read(item, today) for item in items],
         total=total,
         page=page,
         size=size,
@@ -65,18 +76,20 @@ async def list_requests(
 async def create_request(
     dto: RequestCreate,
     actor: Actor = Depends(get_actor),
+    today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
-    return _detail(actor, await service.create(actor, dto))
+    return _detail(actor, await service.create(actor, dto), today)
 
 
 @router.get("/{request_id}", response_model=RequestDetail, summary="A request with its journal and available actions")
 async def get_request(
     request_id: int,
     actor: Actor = Depends(get_actor),
+    today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
-    return _detail(actor, await service.get(actor, request_id))
+    return _detail(actor, await service.get(actor, request_id), today)
 
 
 @router.patch(
@@ -89,9 +102,10 @@ async def update_request(
     request_id: int,
     dto: RequestUpdate,
     actor: Actor = Depends(get_actor),
+    today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
-    return _detail(actor, await service.update(actor, request_id, dto))
+    return _detail(actor, await service.update(actor, request_id, dto), today)
 
 
 @router.post(
@@ -104,9 +118,10 @@ async def add_comment(
     request_id: int,
     dto: CommentCreate,
     actor: Actor = Depends(get_actor),
+    today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
-    return _detail(actor, await service.comment(actor, request_id, dto.comment))
+    return _detail(actor, await service.comment(actor, request_id, dto.comment), today)
 
 
 @router.post(
@@ -167,7 +182,8 @@ async def remove_attachment(
     description=(
         "Moves the request along its life cycle. Answers 403 when the action is never available to the "
         "current person for this request, and 409 with the current status when it is available in another status. "
-        "The reassign action keeps the status and changes the payer of an approved request."
+        "The reassign action keeps the status and changes the payer of an approved request. Paying a recurring "
+        "request keeps it approved; the finish action closes it."
     ),
 )
 async def act_on_request(
@@ -175,10 +191,11 @@ async def act_on_request(
     action: Action,
     dto: ActionRequest | None = None,
     actor: Actor = Depends(get_actor),
+    today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
 ) -> RequestDetail:
     body = dto or ActionRequest()
     # Only the fields the caller gave: a null they sent is a choice, a field they left out is not.
     parameters = body.model_dump(exclude_unset=True, exclude={"comment"})
     request = await service.act(actor, request_id, action, comment=body.comment, parameters=parameters)
-    return _detail(actor, request)
+    return _detail(actor, request, today)

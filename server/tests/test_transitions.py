@@ -8,7 +8,7 @@ import pytest
 from tests.conftest import Session, World
 
 STATUSES = ["new", "returned", "escalated", "approved", "paid", "rejected"]
-ACTIONS = ["approve", "escalate", "return", "reject", "resubmit", "cancel", "pay", "reassign"]
+ACTIONS = ["approve", "escalate", "return", "reject", "resubmit", "cancel", "pay", "reassign", "finish"]
 PERSONAS = ["author", "moderator", "finance_director", "payer"]
 
 #: (persona, action, status the request is in) -> status it moves to. Everything else is refused.
@@ -28,6 +28,9 @@ ALLOWED: dict[tuple[str, str, str], str] = {
     ("payer", "pay", "approved"): "paid",
     ("finance_director", "reassign", "approved"): "approved",
 }
+#: Given to the persona only for a recurring request, which the request of this matrix is not:
+#: refused as a conflict in every status. Recurring requests have tests of their own.
+FOR_RECURRING_ONLY = {("author", "finish"), ("finance_director", "finish")}
 #: Actions that keep the status: their journal entry says the status did not change.
 KEEP_STATUS = {"reassign"}
 
@@ -63,7 +66,7 @@ async def drive(cast: Cast, status: str) -> None:
         "returned": [(cast.moderator, "return", {})],
         "escalated": [(cast.moderator, "escalate", {})],
         "approved": [(cast.moderator, "approve", {})],
-        "paid": [(cast.moderator, "approve", {}), (cast.payer, "pay", {"paid_on": "2026-10-01"})],
+        "paid": [(cast.moderator, "approve", {}), (cast.payer, "pay", {"paid_on": "2026-10-01", "amount": "1590.00"})],
         "rejected": [(cast.moderator, "reject", {})],
     }
     for session, action, body in steps[status]:
@@ -84,6 +87,8 @@ async def cast(world: World) -> Cast:
 
 
 def never_available(persona: str, action: str) -> bool:
+    if (persona, action) in FOR_RECURRING_ONLY:
+        return False
     return not any(key[0] == persona and key[1] == action for key in ALLOWED)
 
 
@@ -95,7 +100,9 @@ async def test_every_combination_of_person_action_and_status(
 ) -> None:
     await drive(cast, status)
     journal_before = await cast.journal()
-    body = {"pay": {"paid_on": "2026-10-02"}, "reassign": {"payer_id": cast.payer.id}}.get(action, {})
+    body = {"pay": {"paid_on": "2026-10-02", "amount": "1590.00"}, "reassign": {"payer_id": cast.payer.id}}.get(
+        action, {}
+    )
 
     response = await cast.session(persona).post(f"/v1/requests/{cast.request_id}/{action}", json=body)
 
@@ -189,7 +196,9 @@ async def test_a_request_returned_by_the_finance_director_goes_back_to_its_moder
 async def test_paying_records_the_payer_and_the_payment_date(cast: Cast) -> None:
     await drive(cast, "approved")
 
-    response = await cast.payer.post(f"/v1/requests/{cast.request_id}/pay", json={"paid_on": "2026-10-03"})
+    response = await cast.payer.post(
+        f"/v1/requests/{cast.request_id}/pay", json={"paid_on": "2026-10-03", "amount": "1590.00"}
+    )
 
     body = response.json()
     assert body["status"] == "paid"

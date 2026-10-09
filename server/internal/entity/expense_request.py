@@ -6,7 +6,9 @@ from approck_sqlalchemy_utils.model import Base
 from sqlalchemy import TIMESTAMP, BigInteger, Boolean, Date, ForeignKey, Numeric, String, Text, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from internal.entity.enums import Status
 from internal.entity.person import Person
+from internal.entity.recurrence import Recurrence
 from internal.entity.reference_item import ReferenceItem
 
 
@@ -23,10 +25,14 @@ class ExpenseRequest(MixinWithAutoNow, Base):
     solution: Mapped[str] = mapped_column(Text)
     amount: Mapped[Decimal] = mapped_column(Numeric(20, 4))
     currency: Mapped[str] = mapped_column(String(3))
-    payment_period: Mapped[str] = mapped_column(String(255))
+    #: What the recurrence does not say about when to pay, in the author's words.
+    payment_period: Mapped[str | None] = mapped_column(String(255))
+    #: How often the request is paid (a ``Recurrence``); empty for a request paid once.
+    recurrence: Mapped[str | None] = mapped_column(String(16))
     deadline: Mapped[datetime.date | None] = mapped_column(Date)
 
     status: Mapped[str] = mapped_column(String(16), index=True)
+    #: The date of the latest payment: the lists and the queue read it instead of the payments.
     paid_on: Mapped[datetime.date | None] = mapped_column(Date)
     #: Who took the request to the rejected status, and what they were to it then (a ``Party``).
     rejected_by_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"))
@@ -45,6 +51,29 @@ class ExpenseRequest(MixinWithAutoNow, Base):
     attachments: Mapped[list["Attachment"]] = relationship(
         back_populates="request", lazy="selectin", order_by="Attachment.id"
     )
+    #: The latest payment first.
+    payments: Mapped[list["Payment"]] = relationship(
+        back_populates="request", lazy="selectin", order_by="(Payment.paid_on.desc(), Payment.id.desc())"
+    )
+
+    @property
+    def is_recurring(self) -> bool:
+        return self.recurrence is not None
+
+    @property
+    def has_payment(self) -> bool:
+        return self.paid_on is not None
+
+    def back_in_queue_on(self, today: datetime.date) -> datetime.date | None:
+        """The day an approved recurring request comes back to its payer.
+
+        Empty while the request waits for a payment now: it is not recurring, not approved,
+        not paid yet, or the period of its latest payment is over.
+        """
+        if self.recurrence is None or self.paid_on is None or self.status != Status.APPROVED.value:
+            return None
+        back = Recurrence(self.recurrence).next_period_start(self.paid_on)
+        return back if back > today else None
 
 
 class JournalEntry(Base):
@@ -65,6 +94,20 @@ class JournalEntry(Base):
     request: Mapped[ExpenseRequest] = relationship(back_populates="journal")
     person: Mapped[Person] = relationship(foreign_keys=[person_id], lazy="joined")
     payer: Mapped[Person | None] = relationship(foreign_keys=[payer_id], lazy="joined")
+
+
+class Payment(Base):
+    """One mark of a payment of a request. Rows are never updated or deleted."""
+
+    request_id: Mapped[int] = mapped_column(ForeignKey("expense_request.id"), index=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("person.id"))
+    paid_on: Mapped[datetime.date] = mapped_column(Date)
+    #: In the currency of the request.
+    amount: Mapped[Decimal] = mapped_column(Numeric(20, 4))
+    created_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    request: Mapped[ExpenseRequest] = relationship(back_populates="payments")
+    person: Mapped[Person] = relationship(lazy="joined")
 
 
 class Attachment(Base):
