@@ -45,6 +45,8 @@ export interface Me extends Person {
     /** Whether the installation sends notifications. */
     enabled: boolean
     telegram_linked: boolean
+    /** Whether requests may be decided on from the linked Telegram chat. */
+    telegram_decisions: boolean
   }
 }
 

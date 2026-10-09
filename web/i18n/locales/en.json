@@ -276,6 +276,7 @@
     "link": "Link Telegram",
     "unlink": "Unlink Telegram",
     "open": "Open the bot in Telegram",
-    "linkHint": "Press Start in the chat with the bot. The link works once, for 15 minutes; this page updates by itself."
+    "linkHint": "Press Start in the chat with the bot. The link works once, for 15 minutes; this page updates by itself.",
+    "decisions": "A moderator and a finance director can decide on a request with the buttons in the chat, without signing in. Link only a Telegram of your own."
   }
 }

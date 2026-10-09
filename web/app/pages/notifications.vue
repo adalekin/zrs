@@ -82,6 +82,10 @@ onBeforeUnmount(stopAsking)
         <p class="text-muted-foreground text-sm">
           {{ $t('notifications.about') }}
         </p>
+        <!-- Said before the chat is linked: whoever holds the phone decides in the name of its owner. -->
+        <p v-if="me!.notifications.telegram_decisions" class="text-muted-foreground text-sm">
+          {{ $t('notifications.decisions') }}
+        </p>
       </div>
 
       <Button
