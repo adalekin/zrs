@@ -21,6 +21,7 @@ class PaymentDayRead(BaseModel):
 class NotificationsRead(BaseModel):
     enabled: bool = Field(description="Whether the installation sends notifications")
     telegram_linked: bool = Field(description="Whether the person has linked their Telegram chat")
+    telegram_decisions: bool = Field(description="Whether requests may be decided on from the linked Telegram chat")
 
 
 class TelegramLinkCodeRead(BaseModel):

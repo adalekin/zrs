@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     #: How the server reaches the Telegram Bot API: straight or through the proxy of the installation.
     TELEGRAM_EGRESS: Literal["direct", "proxy"] | None = None
     TELEGRAM_PROXY_URL: str | None = None
+    #: Whether a person may decide on a request from the chat with the bot, without signing in.
+    TELEGRAM_DECISIONS: Literal["on", "off"] | None = None
     #: The public address of the web app, as the web app itself is given it: messages link to requests.
     AUTH_ORIGIN: str | None = None
     #: The language of the interface, as the web app is given it: messages are written in it.
@@ -115,6 +117,7 @@ class Settings(BaseSettings):
         "TELEGRAM_BOT_USERNAME",
         "TELEGRAM_EGRESS",
         "TELEGRAM_PROXY_URL",
+        "TELEGRAM_DECISIONS",
         "AUTH_ORIGIN",
         "UI_LOCALE",
         mode="before",
@@ -133,7 +136,14 @@ class Settings(BaseSettings):
     def check_notifications(self) -> "Settings":
         if self.NOTIFICATIONS == "off":
             return self
-        needed = ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_EGRESS", "AUTH_ORIGIN", "UI_LOCALE"]
+        needed = [
+            "TELEGRAM_BOT_TOKEN",
+            "TELEGRAM_BOT_USERNAME",
+            "TELEGRAM_EGRESS",
+            "TELEGRAM_DECISIONS",
+            "AUTH_ORIGIN",
+            "UI_LOCALE",
+        ]
         if self.TELEGRAM_EGRESS == "proxy":
             needed.append("TELEGRAM_PROXY_URL")
         missing = [name for name in needed if getattr(self, name) is None]

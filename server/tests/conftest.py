@@ -35,6 +35,7 @@ TEST_ENVIRONMENT = {
     "TELEGRAM_BOT_USERNAME": "zrs_test_bot",
     "TELEGRAM_EGRESS": "direct",
     "TELEGRAM_PROXY_URL": "",
+    "TELEGRAM_DECISIONS": "on",
     "AUTH_ORIGIN": "https://zrs.test",
     "UI_LOCALE": "en",
     "S3_ENDPOINT_URL": "https://storage.test",
@@ -57,9 +58,19 @@ from internal.app.http.app import create_app
 from internal.config import settings
 from internal.controller.http.deps import get_storage, get_today, get_verifier
 from internal.exceptions import IdentityProviderUnavailable
+from internal.service.bot import BotListener
 from internal.service.notification import NotificationService
-from internal.service.telegram import Blocked, ChatClosed, Started, TelegramUnavailable, Update
-from internal.service.telegram_link import TelegramLinkService
+from internal.service.telegram import (
+    Blocked,
+    ChatClosed,
+    Event,
+    Keyboard,
+    Pressed,
+    Said,
+    Started,
+    TelegramUnavailable,
+    Update,
+)
 
 TEST_DATABASE_URL = settings.database_url.render_as_string(hide_password=False)
 
@@ -101,7 +112,7 @@ async def clean_tables(engine: AsyncEngine) -> None:
     async with engine.begin() as connection:
         await connection.execute(
             text(
-                "TRUNCATE notification, telegram_link, telegram_link_code, telegram_cursor, "
+                "TRUNCATE telegram_intent, notification, telegram_link, telegram_link_code, telegram_cursor, "
                 "payment, attachment, journal_entry, expense_request, reference_item, person "
                 "RESTART IDENTITY CASCADE"
             )
@@ -172,19 +183,46 @@ class FakeTelegram:
 
     def __init__(self) -> None:
         self.sent: list[tuple[int, str]] = []
+        #: The buttons under every message that has any, by the number of the message.
+        self.keyboards: dict[int, Keyboard] = {}
+        #: The chat every message went to, by the number of the message.
+        self.chat_of: dict[int, int] = {}
+        #: The message each answer of the bot is tied to, by the number of the answer.
+        self.replies: dict[int, int] = {}
+        #: What the people who pressed a button were told.
+        self.answers: list[str] = []
         self.updates: list[Update] = []
         self.available = True
         #: Chats whose people blocked the bot.
         self.closed: set[int] = set()
         #: Set by a test to keep a reader inside its call.
         self.hold: asyncio.Event | None = None
+        self._messages = 0
 
-    async def send_message(self, chat_id: int, text: str) -> None:
+    async def send_message(
+        self, chat_id: int, text: str, keyboard: Keyboard | None = None, *, reply_to: int | None = None
+    ) -> int:
         if not self.available:
             raise TelegramUnavailable("Telegram is unavailable")
         if chat_id in self.closed:
             raise ChatClosed("Forbidden: bot was blocked by the user")
+        self._messages += 1
+        self.chat_of[self._messages] = chat_id
         self.sent.append((chat_id, text))
+        if keyboard:
+            self.keyboards[self._messages] = keyboard
+        if reply_to is not None:
+            self.replies[self._messages] = reply_to
+        return self._messages
+
+    async def answer_press(self, press_id: str, text: str) -> None:
+        self.answers.append(text)
+
+    async def set_keyboard(self, chat_id: int, message_id: int, keyboard: Keyboard | None) -> None:
+        if keyboard:
+            self.keyboards[message_id] = keyboard
+        else:
+            self.keyboards.pop(message_id, None)
 
     async def get_updates(self, offset: int | None, wait_seconds: int) -> list[Update]:
         if not self.available:
@@ -193,14 +231,34 @@ class FakeTelegram:
             await self.hold.wait()
         return [update for update in self.updates if offset is None or update.id >= offset]
 
+    @property
+    def latest(self) -> int:
+        """The number of the message sent last."""
+        return self._messages
+
+    def _tell(self, event: Event) -> None:
+        self.updates.append(Update(len(self.updates) + 100, event))
+
     def start(self, chat_id: int, parameter: str | None) -> None:
         """A person starts the bot in their chat."""
-        self.updates.append(Update(len(self.updates) + 100, Started(chat_id, parameter)))
+        self._tell(Started(chat_id, parameter))
 
     def block(self, chat_id: int) -> None:
         """A person blocks the bot."""
         self.closed.add(chat_id)
-        self.updates.append(Update(len(self.updates) + 100, Blocked(chat_id)))
+        self._tell(Blocked(chat_id))
+
+    def press(self, chat_id: int, message_id: int, data: str) -> None:
+        """A person presses a button under a message."""
+        self._tell(Pressed(chat_id, message_id, f"press-{len(self.updates)}", data))
+
+    def say(self, chat_id: int, text: str) -> None:
+        """A person writes to the bot."""
+        self._tell(Said(chat_id, text))
+
+    def buttons(self, message_id: int) -> dict[str, str]:
+        """The buttons under a message: what each says and what it carries."""
+        return {button.text: button.data for row in self.keyboards.get(message_id, []) for button in row}
 
 
 @pytest.fixture
@@ -309,10 +367,10 @@ def world(client: AsyncClient, verifier: FakeVerifier) -> World:
     return World(client, verifier)
 
 
-async def read_bot(telegram: FakeTelegram) -> bool:
+async def read_bot(telegram: FakeTelegram, today: datetime.date = datetime.date(2026, 10, 9)) -> bool:
     """One reading of what the bot was told, as the background task does it."""
     async with approck_sqlalchemy_utils.session.context_session() as session:
-        return await TelegramLinkService(session).read_updates(telegram, wait_seconds=0)  # type: ignore[arg-type]
+        return await BotListener(session).read_updates(telegram, today, wait_seconds=0)  # type: ignore[arg-type]
 
 
 async def link_telegram(person: Session, telegram: FakeTelegram, chat_id: int) -> None:

@@ -1,6 +1,8 @@
 """The messages people get about requests: who is told what, when, and what stops a message."""
 
 import datetime
+import html
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,6 +15,36 @@ from tests.conftest import Clock, FakeTelegram, Session, World, link_telegram, s
 day = datetime.date
 
 AUTHOR, MODERATOR, DIRECTOR, PAYER, OTHER_PAYER, OTHER_MODERATOR = 1, 2, 3, 4, 5, 6
+
+
+def plain(text: str) -> str:
+    """A message as a person reads it: without the markup."""
+    return html.unescape(re.sub(r"<[^>]+>", "", text))
+
+
+def link(request: dict[str, Any], name: str = "Request") -> str:
+    """The number of a request as a message writes it: it opens the request."""
+    return f'<a href="https://zrs.test/requests/{request["id"]}">{name} No. {request["id"]}</a>'
+
+
+def waits_for_decision(request: dict[str, Any]) -> str:
+    return f"⚪ Request No. {request['id']} waits for your decision"
+
+
+def waits_for_payment(request: dict[str, Any]) -> str:
+    return f"🟢 Request No. {request['id']} is approved and waits for payment"
+
+
+def is_approved(request: dict[str, Any]) -> str:
+    return f"🟢 Your request No. {request['id']} is approved"
+
+
+def is_returned(request: dict[str, Any]) -> str:
+    return f"🟠 Request No. {request['id']} is returned to you for correction"
+
+
+def is_paid(request: dict[str, Any]) -> str:
+    return f"✅ Request No. {request['id']}: a payment is marked"
 
 
 @dataclass
@@ -39,7 +71,7 @@ class Cast:
     async def told(self) -> list[tuple[int, str]]:
         """Send what waits and say who got what: the chat and the first line of each message."""
         await send_waiting(self.telegram, self.clock.today)
-        sent = [(chat, text.split("\n", 1)[0]) for chat, text in self.telegram.sent]
+        sent = [(chat, plain(text).split("\n", 1)[0]) for chat, text in self.telegram.sent]
         self.telegram.sent.clear()
         return sorted(sent)
 
@@ -75,14 +107,12 @@ async def cast(world: World, clock: Clock, telegram: FakeTelegram) -> Cast:
 async def test_a_new_request_is_told_to_its_moderator(cast: Cast) -> None:
     request = await cast.submit(deadline="2026-10-20")
 
-    texts = await cast.texts()
-
-    assert texts == [
+    assert await cast.texts() == [
         (
-            f"Request No. {request['id']} waits for your action\n"
+            f"⚪ <b>{link(request)} waits for your decision</b>\n"
             "Monthly subscription for the video tool\n"
-            "1,590.00 RUB · priority: Normal · deadline 2026-10-20\n"
-            f"https://zrs.test/requests/{request['id']}"
+            "<b>1,590.00\u00a0₽</b> · Normal · by 2026-10-20\n"
+            "Author: Alice Author"
         )
     ]
 
@@ -96,21 +126,42 @@ async def test_a_request_passed_on_is_told_to_every_finance_director_but_its_aut
     request = await cast.world.submit(cast.author, cast.lists, second_director)
     await cast.told()
 
-    await cast.act(second_director, request, "escalate")
+    await cast.act(second_director, request, "escalate", comment="Above my limit")
 
-    assert await cast.told() == [(DIRECTOR, f"Request No. {request['id']} waits for your action")]
+    assert await cast.texts() == [
+        (
+            f"🟡 <b>{link(request)} is passed to you for approval</b>\n"
+            "Monthly subscription for the video tool\n"
+            "<b>1,590.00\u00a0₽</b> · Normal\n"
+            "Author: Alice Author · Moderator: Second-Director\n"
+            "<blockquote>Above my limit</blockquote>"
+        )
+    ]
 
 
 async def test_an_approved_request_is_told_to_its_payer_alone(cast: Cast) -> None:
-    request = await cast.submit(payer_id=cast.payer.id)
+    request = await cast.submit(payer_id=cast.payer.id, recurrence="month", payment_form_id=None)
     await cast.told()
 
     await cast.act(cast.moderator, request, "approve")
 
-    assert await cast.told() == [
-        (AUTHOR, f"Your request No. {request['id']} is approved"),
-        (PAYER, f"Request No. {request['id']} waits for your action"),
-    ]
+    assert await cast.told() == [(AUTHOR, is_approved(request)), (PAYER, waits_for_payment(request))]
+
+
+async def test_the_payer_is_told_how_and_when_to_pay(cast: Cast) -> None:
+    request = await cast.submit(
+        payer_id=cast.payer.id, recurrence="month", deadline="2026-10-20", payment_form_id=cast.lists["payment_form_id"]
+    )
+    await cast.told()
+
+    await cast.act(cast.moderator, request, "approve")
+
+    assert (await cast.texts())[0] == (
+        f"🟢 <b>{link(request)} is approved and waits for payment</b>\n"
+        "Monthly subscription for the video tool\n"
+        "<b>1,590.00\u00a0₽</b> · Normal · Card · by 2026-10-20 · monthly\n"
+        "Author: Alice Author"
+    )
 
 
 async def test_an_approved_request_without_a_payer_is_told_to_every_payer(cast: Cast) -> None:
@@ -119,21 +170,27 @@ async def test_an_approved_request_without_a_payer_is_told_to_every_payer(cast: 
 
     await cast.act(cast.moderator, request, "approve")
 
-    waits = f"Request No. {request['id']} waits for your action"
     assert await cast.told() == [
-        (AUTHOR, f"Your request No. {request['id']} is approved"),
-        (PAYER, waits),
-        (OTHER_PAYER, waits),
+        (AUTHOR, is_approved(request)),
+        (PAYER, waits_for_payment(request)),
+        (OTHER_PAYER, waits_for_payment(request)),
     ]
 
 
-async def test_a_returned_request_is_told_to_its_author(cast: Cast) -> None:
+async def test_a_returned_request_is_told_to_its_author_with_the_reason(cast: Cast) -> None:
     request = await cast.submit()
     await cast.told()
 
-    await cast.act(cast.moderator, request, "return", comment="Add the invoice")
+    await cast.act(cast.moderator, request, "return", comment="Add the invoice & the <contract>")
 
-    assert await cast.told() == [(AUTHOR, f"Request No. {request['id']} waits for your action")]
+    assert await cast.texts() == [
+        (
+            f"🟠 <b>{link(request)} is returned to you for correction</b>\n"
+            "Monthly subscription for the video tool\n"
+            "Returned by Bob Moderator\n"
+            "<blockquote>Add the invoice &amp; the &lt;contract&gt;</blockquote>"
+        )
+    ]
 
 
 async def test_a_request_given_another_moderator_is_told_to_them(cast: Cast) -> None:
@@ -142,7 +199,7 @@ async def test_a_request_given_another_moderator_is_told_to_them(cast: Cast) -> 
 
     await cast.author.patch(f"/v1/requests/{request['id']}", json={"moderator_id": cast.other_moderator.id})
 
-    assert await cast.told() == [(OTHER_MODERATOR, f"Request No. {request['id']} waits for your action")]
+    assert await cast.told() == [(OTHER_MODERATOR, waits_for_decision(request))]
 
 
 async def test_a_change_of_the_payer_is_told_to_the_new_one(cast: Cast) -> None:
@@ -152,7 +209,7 @@ async def test_a_change_of_the_payer_is_told_to_the_new_one(cast: Cast) -> None:
 
     await cast.act(cast.director, request, "reassign", payer_id=cast.other_payer.id)
 
-    assert await cast.told() == [(OTHER_PAYER, f"Request No. {request['id']} waits for your action")]
+    assert await cast.told() == [(OTHER_PAYER, waits_for_payment(request))]
 
 
 async def test_a_person_without_a_linked_chat_is_told_nothing(cast: Cast) -> None:
@@ -171,7 +228,7 @@ async def test_a_request_that_no_longer_waits_is_not_told(cast: Cast) -> None:
     # The moderator decided before the sender came round.
     await cast.act(cast.moderator, request, "return")
 
-    assert await cast.told() == [(AUTHOR, f"Request No. {request['id']} waits for your action")]
+    assert await cast.told() == [(AUTHOR, is_returned(request))]
 
 
 async def test_a_request_paid_while_the_sender_is_at_work_is_not_told_to_the_other_payer(cast: Cast) -> None:
@@ -185,19 +242,20 @@ async def test_a_request_paid_while_the_sender_is_at_work_is_not_told_to_the_oth
         def __init__(self) -> None:
             self.sent: list[tuple[int, str]] = []
 
-        async def send_message(self, chat_id: int, text: str) -> None:
+        async def send_message(self, chat_id: int, text: str, keyboard: object = None) -> int:
             if not self.sent:
                 await cast.act(cast.payer, request, "pay", paid_on="2026-10-09", amount="100")
-            self.sent.append((chat_id, text.split("\n", 1)[0]))
+            self.sent.append((chat_id, plain(text).split("\n", 1)[0]))
+            return len(self.sent)
 
     slow = PaysMeanwhile()
     await send_waiting(slow, cast.clock.today)  # type: ignore[arg-type]
 
     # The message to the other payer waited in the same pass, about a request that waits no more.
     assert slow.sent == [
-        (PAYER, f"Request No. {request['id']} waits for your action"),
-        (AUTHOR, f"Your request No. {request['id']} is approved"),
-        (AUTHOR, f"A payment is marked for your request No. {request['id']}"),
+        (PAYER, waits_for_payment(request)),
+        (AUTHOR, is_approved(request)),
+        (AUTHOR, is_paid(request)),
     ]
 
 
@@ -210,10 +268,25 @@ async def test_nobody_is_told_about_what_they_did_themselves(cast: Cast) -> None
     # The one who approves is the payer the request now waits for.
     await cast.act(both, request, "approve")
 
-    assert await cast.told() == [(AUTHOR, f"Your request No. {request['id']} is approved")]
+    assert await cast.told() == [(AUTHOR, is_approved(request))]
 
 
 # --- the author is told what was decided ---
+
+
+async def test_the_author_is_told_who_approved_the_request(cast: Cast) -> None:
+    request = await cast.submit()
+    await cast.told()
+
+    await cast.act(cast.moderator, request, "approve", comment="Pay from the marketing budget")
+
+    assert (await cast.texts())[-1] == (
+        f"🟢 <b>Your {link(request, 'request')} is approved</b>\n"
+        "Monthly subscription for the video tool\n"
+        "<b>1,590.00\u00a0₽</b>\n"
+        "Approved by Bob Moderator\n"
+        "<blockquote>Pay from the marketing budget</blockquote>"
+    )
 
 
 async def test_the_author_is_told_who_rejected_the_request_and_why(cast: Cast) -> None:
@@ -227,15 +300,15 @@ async def test_the_author_is_told_who_rejected_the_request_and_why(cast: Cast) -
 
     assert await cast.texts() == [
         (
-            f"Your request No. {by_moderator['id']} was rejected by the moderator Bob Moderator\n"
+            f"⚫ <b>Your {link(by_moderator, 'request')} is rejected</b>\n"
             "Monthly subscription for the video tool\n"
-            "Comment: Not this quarter\n"
-            f"https://zrs.test/requests/{by_moderator['id']}"
+            "Rejected by the moderator Bob Moderator\n"
+            "<blockquote>Not this quarter</blockquote>"
         ),
         (
-            f"Your request No. {by_director['id']} was rejected by the finance director\n"
+            f"🔴 <b>Your {link(by_director, 'request')} is rejected</b>\n"
             "Monthly subscription for the video tool\n"
-            f"https://zrs.test/requests/{by_director['id']}"
+            "Rejected by the finance director"
         ),
     ]
 
@@ -258,10 +331,9 @@ async def test_the_author_is_told_of_a_payment_with_its_date_and_amount(cast: Ca
 
     assert await cast.texts() == [
         (
-            f"A payment is marked for your request No. {request['id']}\n"
+            f"✅ <b>{link(request)}: a payment is marked</b>\n"
             "Monthly subscription for the video tool\n"
-            "1,500.50 RUB · 2026-10-09\n"
-            f"https://zrs.test/requests/{request['id']}"
+            "<b>1,500.50\u00a0₽</b> · 2026-10-09"
         )
     ]
 
@@ -278,8 +350,7 @@ async def test_the_author_is_told_of_every_payment_of_a_recurring_request_and_no
     await cast.act(cast.director, request, "finish")
     finished = await cast.told()
 
-    paid = (AUTHOR, f"A payment is marked for your request No. {request['id']}")
-    assert (first, second, finished) == ([paid], [paid], [])
+    assert (first, second, finished) == ([(AUTHOR, is_paid(request))], [(AUTHOR, is_paid(request))], [])
 
 
 # --- comments ---
@@ -292,15 +363,13 @@ async def test_a_comment_of_the_payer_is_told_to_the_author_and_the_moderator(ca
 
     await cast.payer.post(f"/v1/requests/{request['id']}/comments", json={"comment": "Which account do I pay from?"})
 
-    texts = await cast.texts()
     assert (
-        texts
+        await cast.texts()
         == [
             (
-                f"Dave Payer writes about request No. {request['id']}\n"
+                f"💬 <b>Dave Payer about {link(request, 'request')}</b>\n"
                 "Monthly subscription for the video tool\n"
-                "Which account do I pay from?\n"
-                f"https://zrs.test/requests/{request['id']}"
+                "<blockquote>Which account do I pay from?</blockquote>"
             )
         ]
         * 2
@@ -313,7 +382,18 @@ async def test_a_comment_of_the_author_is_told_to_the_moderator_alone(cast: Cast
 
     await cast.author.post(f"/v1/requests/{request['id']}/comments", json={"comment": "The invoice is attached"})
 
-    assert await cast.told() == [(MODERATOR, f"Alice Author writes about request No. {request['id']}")]
+    assert await cast.told() == [(MODERATOR, f"💬 Alice Author about request No. {request['id']}")]
+
+
+async def test_a_long_situation_and_a_long_comment_are_cut_short(cast: Cast) -> None:
+    request = await cast.submit(situation="S" * 500 + "\nthe second line")
+    await cast.told()
+
+    await cast.author.post(f"/v1/requests/{request['id']}/comments", json={"comment": "C" * 5000})
+
+    _headline, gist, comment = plain((await cast.texts())[0]).split("\n")
+    assert (len(gist), gist[-1]) == (200, "…")
+    assert (len(comment), comment[-1]) == (700, "…")
 
 
 # --- a request that comes back with a new period ---
@@ -324,7 +404,7 @@ async def test_a_new_period_is_told_to_the_payer_once(cast: Cast) -> None:
     await cast.act(cast.moderator, request, "approve")
     await cast.act(cast.payer, request, "pay", paid_on="2026-10-09", amount="100")
     await cast.told()
-    waits = (PAYER, f"Request No. {request['id']} waits for your action")
+    due = (PAYER, f"🟢 Request No. {request['id']}: a payment for the new period is due")
 
     cast.clock.today = day(2026, 10, 31)
     before = await cast.told()
@@ -336,7 +416,7 @@ async def test_a_new_period_is_told_to_the_payer_once(cast: Cast) -> None:
     cast.clock.today = day(2026, 12, 1)
     next_period = await cast.told()
 
-    assert (before, on_the_first, again, later, next_period) == ([], [waits], [], [], [waits])
+    assert (before, on_the_first, again, later, next_period) == ([], [due], [], [], [due])
 
 
 # --- Telegram failing ---
@@ -353,10 +433,7 @@ async def test_an_action_goes_through_while_telegram_is_down_and_the_messages_fo
     cast.telegram.available = True
 
     assert approved["status"] == "approved"
-    assert await cast.told() == [
-        (AUTHOR, f"Your request No. {request['id']} is approved"),
-        (PAYER, f"Request No. {request['id']} waits for your action"),
-    ]
+    assert await cast.told() == [(AUTHOR, is_approved(request)), (PAYER, waits_for_payment(request))]
 
 
 async def test_a_sent_message_is_not_sent_again(cast: Cast) -> None:
@@ -376,10 +453,7 @@ async def test_a_blocked_bot_takes_the_link_off_and_the_rest_is_sent(cast: Cast)
 
     await cast.act(cast.moderator, request, "approve")
 
-    assert await cast.told() == [
-        (AUTHOR, f"Your request No. {request['id']} is approved"),
-        (OTHER_PAYER, f"Request No. {request['id']} waits for your action"),
-    ]
+    assert await cast.told() == [(AUTHOR, is_approved(request)), (OTHER_PAYER, waits_for_payment(request))]
     assert (await cast.payer.get("/v1/me")).json()["notifications"]["telegram_linked"] is False
 
 
@@ -394,10 +468,11 @@ async def test_the_messages_are_written_in_the_language_of_the_installation(
 
     assert await cast.texts() == [
         (
-            f"Запрос № {request['id']} ждёт вашего действия\n"
+            f'⚪ <b><a href="https://zrs.test/requests/{request["id"]}">Запрос № {request["id"]}</a> '
+            "ждёт вашего решения</b>\n"
             "Monthly subscription for the video tool\n"
-            "1 234 567,50 RUB · приоритет: Normal · дедлайн 20.10.2026\n"
-            f"https://zrs.test/requests/{request['id']}"
+            "<b>1\u00a0234\u00a0567,50\u00a0₽</b> · Normal · до 20.10.2026\n"
+            "Автор: Alice Author"
         )
     ]
 

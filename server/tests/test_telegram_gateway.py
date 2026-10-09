@@ -1,10 +1,22 @@
 """The gateway to the Telegram Bot API, against a stand-in for Telegram."""
 
+import json
+
 import httpx
 import pytest
 from pytest_httpx import HTTPXMock
 
-from internal.service.telegram import Blocked, ChatClosed, Started, TelegramGateway, TelegramUnavailable, Update
+from internal.service.telegram import (
+    Blocked,
+    Button,
+    ChatClosed,
+    Pressed,
+    Said,
+    Started,
+    TelegramGateway,
+    TelegramUnavailable,
+    Update,
+)
 
 BASE = "https://api.telegram.org/bot1234:test-token"
 
@@ -15,15 +27,52 @@ def gateway() -> TelegramGateway:
 
 
 async def test_a_message_is_sent_to_the_chat(gateway: TelegramGateway, httpx_mock: HTTPXMock) -> None:
-    httpx_mock.add_response(url=f"{BASE}/sendMessage", json={"ok": True, "result": {"message_id": 1}})
+    httpx_mock.add_response(url=f"{BASE}/sendMessage", json={"ok": True, "result": {"message_id": 41}})
 
-    await gateway.send_message(77, "Request 5 waits for you")
+    number = await gateway.send_message(77, "<b>Request 5</b> waits for you")
 
     sent = httpx_mock.get_request()
-    assert sent is not None
-    assert sent.method == "POST"
-    assert sent.read() and b'"chat_id":77' in sent.read()
-    assert "Request 5 waits for you" in sent.read().decode()
+    assert sent is not None and sent.method == "POST"
+    assert json.loads(sent.read()) == {
+        "chat_id": 77,
+        "text": "<b>Request 5</b> waits for you",
+        "parse_mode": "HTML",
+        "link_preview_options": {"is_disabled": True},
+    }
+    assert number == 41
+
+
+async def test_a_message_carries_buttons_and_answers_an_earlier_one(
+    gateway: TelegramGateway, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(url=f"{BASE}/sendMessage", json={"ok": True, "result": {"message_id": 42}})
+
+    await gateway.send_message(
+        77, "text", [[Button("Approve", "t1"), Button("Reject", "t2")], [Button("Return", "t3")]], reply_to=41
+    )
+
+    sent = json.loads(httpx_mock.get_request().read())  # type: ignore[union-attr]
+    assert sent["reply_markup"] == {
+        "inline_keyboard": [
+            [{"text": "Approve", "callback_data": "t1"}, {"text": "Reject", "callback_data": "t2"}],
+            [{"text": "Return", "callback_data": "t3"}],
+        ]
+    }
+    assert sent["reply_parameters"] == {"message_id": 41, "allow_sending_without_reply": True}
+
+
+async def test_a_press_is_answered_and_the_buttons_are_taken_off(
+    gateway: TelegramGateway, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(url=f"{BASE}/answerCallbackQuery", json={"ok": True, "result": True})
+    httpx_mock.add_response(url=f"{BASE}/editMessageReplyMarkup", json={"ok": True, "result": {"message_id": 42}})
+
+    await gateway.answer_press("press-1", "Request 5 is approved")
+    await gateway.set_keyboard(77, 42, None)
+
+    answered, edited = (json.loads(request.read()) for request in httpx_mock.get_requests())
+    assert answered == {"callback_query_id": "press-1", "text": "Request 5 is approved"}
+    assert edited == {"chat_id": 77, "message_id": 42, "reply_markup": {"inline_keyboard": []}}
 
 
 @pytest.mark.parametrize("status", [429, 500, 502])
@@ -89,6 +138,15 @@ async def test_updates_are_read_from_the_position(gateway: TelegramGateway, http
                     "update_id": 15,
                     "my_chat_member": {"chat": {"id": 77, "type": "private"}, "new_chat_member": {"status": "member"}},
                 },
+                {
+                    "update_id": 16,
+                    "callback_query": {
+                        "id": "press-9",
+                        "data": "token:skip",
+                        "message": {"message_id": 42, "chat": {"id": 77, "type": "private"}},
+                    },
+                },
+                {"update_id": 17, "callback_query": {"id": "press-10", "data": "token"}},
             ],
         },
     )
@@ -98,10 +156,13 @@ async def test_updates_are_read_from_the_position(gateway: TelegramGateway, http
     assert updates == [
         Update(10, Started(77, "abc-DEF_1")),
         Update(11, Started(78, None)),
-        Update(12, None),
+        Update(12, Said(77, "hello")),
         Update(13, None),
         Update(14, Blocked(77)),
         Update(15, None),
+        Update(16, Pressed(77, 42, "press-9", "token:skip")),
+        # A press that came without its message is of no use.
+        Update(17, None),
     ]
     asked = httpx_mock.get_request()
     assert asked is not None and b'"offset":10' in asked.read()
@@ -110,7 +171,7 @@ async def test_updates_are_read_from_the_position(gateway: TelegramGateway, http
 async def test_the_calls_go_through_the_proxy_of_the_installation(httpx_mock: HTTPXMock) -> None:
     through_proxy = TelegramGateway(token="1234:test-token", proxy_url="http://proxy.test:3128")
     httpx_mock.add_response(
-        url=f"{BASE}/sendMessage", proxy_url="http://proxy.test:3128/", json={"ok": True, "result": {}}
+        url=f"{BASE}/sendMessage", proxy_url="http://proxy.test:3128/", json={"ok": True, "result": {"message_id": 1}}
     )
 
     await through_proxy.send_message(77, "text")

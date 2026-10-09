@@ -15,6 +15,7 @@ from internal.entity.recurrence import Recurrence
 from internal.service.notices import NOTICES, AwaitsAction, Letter, Occasion, Words
 from internal.service.queue import Queue
 from internal.service.telegram import ChatClosed, TelegramGateway, TelegramUnavailable
+from internal.service.telegram_decisions import DecisionOffer
 
 
 class NotificationService(BaseService):
@@ -132,12 +133,21 @@ class NotificationService(BaseService):
             journal_entry=message.journal_entry,
             payment=message.payment,
             url=f"{settings.AUTH_ORIGIN}/requests/{message.request_id}",
+            new_period=message.once_key is not None,
         )
+        words = Words(settings.UI_LOCALE)
+        # The decisions open to the reader go under the message as buttons, when the installation allows it.
+        intents = []
+        if notice.offers_decisions and settings.TELEGRAM_DECISIONS == "on":
+            intents = await DecisionOffer(self.session).offer(message.person, message.request, link.chat_id)
+        keyboard = DecisionOffer.keyboard(intents, message.request, words)
         try:
-            await gateway.send_message(link.chat_id, notice.text(letter, Words(settings.UI_LOCALE)))
+            sent = await gateway.send_message(link.chat_id, notice.text(letter, words), keyboard)
         except ChatClosed:
             # The person blocked the bot: there is no chat to write to any more.
             logger.info("Telegram chat of person {} is closed, the link is removed", message.person_id)
+            for intent in intents:
+                await self.session.delete(intent)
             await self.session.delete(link)
             message.dropped_at = func.now()
             await self.session.commit()
@@ -146,6 +156,8 @@ class NotificationService(BaseService):
             await self.session.rollback()
             raise
 
+        for intent in intents:
+            intent.message_id = sent
         message.sent_at = func.now()
         await self.session.commit()
         return True

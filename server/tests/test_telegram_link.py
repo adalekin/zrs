@@ -33,7 +33,11 @@ async def test_the_link_starts_the_bot_of_the_installation_with_a_code(person: S
     assert address == "https://t.me/zrs_test_bot"
     # Telegram takes up to 64 characters of letters, digits, underscores and hyphens.
     assert 16 <= len(code) <= 64 and code.replace("-", "").replace("_", "").isalnum()
-    assert (await person.get("/v1/me")).json()["notifications"] == {"enabled": True, "telegram_linked": False}
+    assert (await person.get("/v1/me")).json()["notifications"] == {
+        "enabled": True,
+        "telegram_linked": False,
+        "telegram_decisions": True,
+    }
 
 
 async def test_starting_the_bot_by_the_link_links_the_chat(person: Session, telegram: FakeTelegram) -> None:
@@ -42,7 +46,8 @@ async def test_starting_the_bot_by_the_link_links_the_chat(person: Session, tele
     await read_bot(telegram)
 
     assert await linked(person)
-    assert telegram.sent == [(77, "Telegram is linked. Messages about requests will come here.")]
+    assert [chat for chat, _ in telegram.sent] == [77]
+    assert telegram.sent[0][1].startswith("Telegram is linked.")
 
 
 async def test_a_link_works_once(world: World, person: Session, telegram: FakeTelegram) -> None:
@@ -54,7 +59,15 @@ async def test_a_link_works_once(world: World, person: Session, telegram: FakeTe
     telegram.start(88, code)
     await read_bot(telegram)
 
-    assert telegram.sent == [(88, "The link is not valid. Get a new one on the notifications page of the service.")]
+    assert telegram.sent == [
+        (
+            88,
+            (
+                "This link does not work any more. Get a new one on the Notifications page of the service.\n"
+                '<a href="https://zrs.test/notifications">Open the Notifications page</a>'
+            ),
+        )
+    ]
     stranger = await world.sign_in("mallory", "requester")
     assert not await linked(stranger)
 
@@ -72,7 +85,7 @@ async def test_a_link_stops_working_when_its_time_is_up(
     await read_bot(telegram)
 
     assert not await linked(person)
-    assert telegram.sent[0][0] == 77 and "not valid" in telegram.sent[0][1]
+    assert telegram.sent[0][0] == 77 and "does not work any more" in telegram.sent[0][1]
 
 
 @pytest.mark.parametrize("parameter", [None, "made-up-code"])
@@ -84,7 +97,10 @@ async def test_starting_the_bot_without_a_code_of_the_service_links_nothing(
     await read_bot(telegram)
 
     assert not await linked(person)
-    assert "not valid" in telegram.sent[0][1]
+    # Started bare, the bot says how to link; with a code it does not know, that the link is dead.
+    expected = "To get messages about requests" if parameter is None else "does not work any more"
+    assert expected in telegram.sent[0][1]
+    assert "https://zrs.test/notifications" in telegram.sent[0][1]
 
 
 async def test_a_new_link_moves_the_person_to_another_chat(person: Session, telegram: FakeTelegram) -> None:
@@ -159,6 +175,6 @@ async def test_an_installation_without_notifications_offers_no_link(
     asked = await person.post("/v1/telegram-link-codes")
     removed = await person.delete("/v1/telegram-link")
 
-    assert state == {"enabled": False, "telegram_linked": False}
+    assert state == {"enabled": False, "telegram_linked": False, "telegram_decisions": False}
     assert asked.status_code == 409
     assert removed.status_code == 409

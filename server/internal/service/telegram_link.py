@@ -7,29 +7,14 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from internal.config import settings
-from internal.entity.notification import TelegramCursor, TelegramLink, TelegramLinkCode
-from internal.service.notices import Locale
-from internal.service.telegram import Blocked, ChatClosed, Started, TelegramGateway, TelegramUnavailable
+from internal.entity.notification import TelegramLink, TelegramLinkCode
 
 #: How long a link that starts the bot works.
 CODE_LIFETIME = datetime.timedelta(minutes=15)
-#: How long one call waits for the bot to be told something.
-POLL_SECONDS = 25
-
-REPLIES: dict[Locale, dict[str, str]] = {
-    "ru": {
-        "linked": "Telegram привязан. Сюда будут приходить сообщения о запросах.",
-        "invalid": "Ссылка недействительна. Получите новую на странице уведомлений в сервисе.",
-    },
-    "en": {
-        "linked": "Telegram is linked. Messages about requests will come here.",
-        "invalid": "The link is not valid. Get a new one on the notifications page of the service.",
-    },
-}
 
 
 class TelegramLinkService(BaseService):
-    """Links a person to their Telegram chat with a one-time code, and reads what the bot is told."""
+    """Links a person to their Telegram chat with a one-time code."""
 
     def __init__(self, session: AsyncSession) -> None:
         super().__init__()
@@ -50,52 +35,21 @@ class TelegramLinkService(BaseService):
         await self.session.execute(delete(TelegramLink).where(TelegramLink.person_id == person_id))
         await self.session.commit()
 
-    async def read_updates(self, gateway: TelegramGateway, *, wait_seconds: int = POLL_SECONDS) -> bool:
-        """Read what the bot was told since the last time and act on it. False when another reader is at it.
+    async def unlink_chat(self, chat_id: int) -> None:
+        """Take the link off a chat whose person blocked the bot. The caller owns the transaction."""
+        await self.session.execute(delete(TelegramLink).where(TelegramLink.chat_id == chat_id))
 
-        Telegram gives the updates of a bot to one reader, so the reading holds a lock for
-        its transaction. The position moves in the same transaction as what the updates
-        did: an update is not acted on twice, whatever stops the server.
-        """
-        got = await self.session.scalar(select(func.pg_try_advisory_xact_lock(func.hashtext("telegram.updates"))))
-        if not got:
-            await self.session.rollback()
-            return False
+    async def links(self, person_id: int, chat_id: int) -> bool:
+        """Whether this chat is the one the person gets messages in."""
+        found = await self.session.scalar(
+            select(TelegramLink.id).where(TelegramLink.person_id == person_id, TelegramLink.chat_id == chat_id)
+        )
+        return found is not None
 
-        cursor = await self.session.scalar(select(TelegramCursor))
-        try:
-            updates = await gateway.get_updates(cursor.next_update_id if cursor else None, wait_seconds)
-        except TelegramUnavailable:
-            await self.session.rollback()
-            raise
+    async def person_of(self, chat_id: int) -> int | None:
+        return await self.session.scalar(select(TelegramLink.person_id).where(TelegramLink.chat_id == chat_id))
 
-        replies: list[tuple[int, str]] = []
-        for update in updates:
-            match update.event:
-                case Started(chat_id=chat_id, parameter=parameter):
-                    linked = parameter is not None and await self._redeem(parameter, chat_id)
-                    replies.append((chat_id, "linked" if linked else "invalid"))
-                case Blocked(chat_id=chat_id):
-                    await self.session.execute(delete(TelegramLink).where(TelegramLink.chat_id == chat_id))
-                case None:
-                    pass
-        if updates:
-            position = updates[-1].id + 1
-            if cursor is None:
-                self.session.add(TelegramCursor(next_update_id=position))
-            else:
-                cursor.next_update_id = position
-        await self.session.commit()
-
-        for chat_id, reply in replies:
-            try:
-                await gateway.send_message(chat_id, REPLIES[settings.UI_LOCALE][reply])
-            except (TelegramUnavailable, ChatClosed):
-                # The link is made or refused already; the person sees it in the service.
-                continue
-        return True
-
-    async def _redeem(self, code: str, chat_id: int) -> bool:
+    async def redeem(self, code: str, chat_id: int) -> bool:
         """Link the chat to the person the code was issued to. A code works once and until it expires."""
         found = await self.session.scalar(
             select(TelegramLinkCode).where(TelegramLinkCode.code == code).with_for_update()

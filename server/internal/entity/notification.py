@@ -35,6 +35,32 @@ class TelegramCursor(Base):
     next_update_id: Mapped[int] = mapped_column(BigInteger)
 
 
+class TelegramIntent(Base):
+    """A decision offered to a person as a button under a message of the bot.
+
+    The button carries the token alone, so pressing it can do nothing the person was not
+    offered. An intent is carried out once; one that waits for a reason is carried out by
+    the next message the person writes.
+    """
+
+    #: What the button sends back.
+    token: Mapped[str] = mapped_column(String(32), unique=True)
+    person_id: Mapped[int] = mapped_column(ForeignKey("person.id"), index=True)
+    request_id: Mapped[int] = mapped_column(ForeignKey("expense_request.id"))
+    #: The action of the transitions table the button stands for.
+    action: Mapped[str] = mapped_column(String(16))
+    #: ``offered``, ``awaiting_reason`` or ``done``.
+    state: Mapped[str] = mapped_column(String(16))
+    #: The message the button stands under.
+    chat_id: Mapped[int] = mapped_column(BigInteger)
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    #: The message that asks for the reason, while the intent waits for one: its buttons go with the answer.
+    question_message_id: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime.datetime] = mapped_column(TIMESTAMP(timezone=True), server_default=func.now())
+
+    person: Mapped[Person] = relationship(lazy="joined")
+
+
 class Notification(Base):
     """A message to a person about a request, written in the transaction of what it tells about.
 

@@ -17,3 +17,12 @@ class Actor:
 
     def has(self, role: Role) -> bool:
         return role in self.roles
+
+    @classmethod
+    def as_last_signed_in(cls, person: Person) -> "Actor":
+        """The person with the roles their latest sign-in gave them.
+
+        For an action that comes without a token, from the chat with the bot: the service
+        has nothing fresher to go by there.
+        """
+        return cls(person=person, roles=frozenset(Role(role) for role in person.roles))

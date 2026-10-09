@@ -30,6 +30,7 @@ async def me(actor: Actor = Depends(get_actor), session: AsyncSession = Depends(
         notifications=NotificationsRead(
             enabled=notifying,
             telegram_linked=notifying and await TelegramLinkService(session).is_linked(actor.id),
+            telegram_decisions=notifying and settings.TELEGRAM_DECISIONS == "on",
         ),
     )
 

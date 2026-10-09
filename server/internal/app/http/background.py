@@ -16,9 +16,9 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 
 from internal.config import settings
+from internal.service.bot import BotListener
 from internal.service.notification import NotificationService
 from internal.service.telegram import TelegramGateway, TelegramUnavailable
-from internal.service.telegram_link import TelegramLinkService
 
 #: How long the sender rests when no message waits, and after Telegram failed.
 SEND_PAUSE_SECONDS = 5.0
@@ -44,7 +44,7 @@ async def send_waiting(gateway: TelegramGateway) -> None:
 async def read_updates(gateway: TelegramGateway) -> None:
     """One long poll of the bot. A replica that did not get the turn rests before it asks again."""
     async with approck_sqlalchemy_utils.session.context_session() as session:
-        if not await TelegramLinkService(session).read_updates(gateway):
+        if not await BotListener(session).read_updates(gateway, today()):
             await asyncio.sleep(READER_PAUSE_SECONDS)
 
 

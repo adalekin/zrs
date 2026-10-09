@@ -107,7 +107,14 @@ def test_notifications_load_with_the_bot_and_the_address_of_the_service() -> Non
 
 def test_notifications_switched_off_need_no_bot(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NOTIFICATIONS", "off")
-    for name in ("TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_EGRESS", "AUTH_ORIGIN", "UI_LOCALE"):
+    for name in (
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_BOT_USERNAME",
+        "TELEGRAM_EGRESS",
+        "TELEGRAM_DECISIONS",
+        "AUTH_ORIGIN",
+        "UI_LOCALE",
+    ):
         monkeypatch.delenv(name)
 
     assert load_settings().NOTIFICATIONS == "off"
@@ -128,7 +135,15 @@ def test_start_with_an_unknown_way_of_notifying_names_the_setting(monkeypatch: p
 
 
 @pytest.mark.parametrize(
-    "name", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_BOT_USERNAME", "TELEGRAM_EGRESS", "AUTH_ORIGIN", "UI_LOCALE"]
+    "name",
+    [
+        "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_BOT_USERNAME",
+        "TELEGRAM_EGRESS",
+        "TELEGRAM_DECISIONS",
+        "AUTH_ORIGIN",
+        "UI_LOCALE",
+    ],
 )
 def test_notifications_without_a_setting_of_the_bot_name_it(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
     monkeypatch.delenv(name)
@@ -155,4 +170,18 @@ def test_a_proxy_address_with_direct_access_is_refused(monkeypatch: pytest.Monke
     monkeypatch.setenv("TELEGRAM_PROXY_URL", "socks5://proxy.test:1080")
 
     with pytest.raises(ConfigurationError, match="TELEGRAM_PROXY_URL"):
+        load_settings()
+
+
+@pytest.mark.parametrize("value", ["on", "off"])
+def test_decisions_from_telegram_are_allowed_or_not(monkeypatch: pytest.MonkeyPatch, value: str) -> None:
+    monkeypatch.setenv("TELEGRAM_DECISIONS", value)
+
+    assert load_settings().TELEGRAM_DECISIONS == value
+
+
+def test_an_unknown_answer_about_decisions_names_the_setting(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TELEGRAM_DECISIONS", "maybe")
+
+    with pytest.raises(ConfigurationError, match="TELEGRAM_DECISIONS"):
         load_settings()
