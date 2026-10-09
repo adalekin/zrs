@@ -58,11 +58,12 @@ function listOf(status: Status) {
       <section
         v-for="column in data.columns"
         :key="column.status"
-        class="bg-muted/60 grid grid-cols-1 gap-2 rounded-xl p-2"
+        class="grid grid-cols-1 gap-2 rounded-xl p-2"
+        :class="RequestStage.ofStatus(column.status).paint.column"
       >
         <header class="grid gap-0.5 px-1 pt-1 pb-0.5">
           <div class="flex items-center gap-2">
-            <StatusBadge :status="column.status" />
+            <StatusBadge :stage="RequestStage.ofStatus(column.status)" />
             <span class="text-muted-foreground text-xs tabular-nums">{{ column.totals.count }}</span>
             <span class="ml-auto text-right text-xs font-medium tabular-nums">
               {{ column.totals.amounts.map(total => format.amount(total.amount, total.currency)).join(' + ') }}
@@ -99,7 +100,7 @@ function listOf(status: Status) {
         :to="{ query: { view: 'all', status: totals.status } }"
         class="hover:text-foreground flex items-center gap-1.5 tabular-nums"
       >
-        <StatusBadge :status="totals.status" />{{ totals.count }}
+        <StatusBadge :stage="RequestStage.ofStatus(totals.status)" />{{ totals.count }}
       </NuxtLink>
     </div>
   </div>

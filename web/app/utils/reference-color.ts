@@ -1,8 +1,8 @@
 // The palette of the reference lists. Class names are written out in full:
 // Tailwind collects them by reading the source and misses a name put together at run time.
 //
-// The shades come from the same Tailwind ramps as the statuses (StatusBadge), so that a tag
-// of a reference value and a status badge in one row belong to one family of colours.
+// The shades come from the same Tailwind ramps as the stages of a request (RequestStage), so that
+// a tag of a reference value and a status badge in one row belong to one family of colours.
 
 /** The fill of the tag that shows a coloured value in the list of requests and in a request. */
 export const REFERENCE_FILLS: Record<ReferenceColor, string> = {

@@ -235,6 +235,7 @@
     "finance_director": "у финансового директора",
     "payer": "ждёт оплаты",
     "payerNamed": "ждёт оплаты: {name}",
+    "paid": "оплачено {day}",
     "rejected": {
       "author": "отменил автор",
       "moderator": "отклонил модератор: {name}",

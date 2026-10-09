@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // A request on the board. Each reference list has its own corner: the operation type top left,
 // the priority top right, the payment form next to the amount, so the cards of a column read alike.
+// A card that waits for the person looking is tinted with an opaque colour: its column is painted too.
 const props = defineProps<{
   request: ExpenseRequest
   /** The request waits for the person looking. */
@@ -17,7 +18,7 @@ const payer = computed(() => holderOf(props.request.status) === 'payer' ? props.
   <NuxtLink
     :to="`/requests/${request.id}`"
     class="grid grid-cols-1 gap-2 rounded-lg border p-3 transition-colors"
-    :class="mine ? 'border-primary/40 bg-primary/5' : 'bg-background hover:border-foreground/25'"
+    :class="mine ? 'border-primary/40 bg-[color-mix(in_oklab,var(--primary)_6%,var(--background))]' : 'bg-background hover:border-foreground/25'"
   >
     <div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
       <ReferenceValue :item="request.operation_type" />

@@ -307,7 +307,11 @@ const today = calendarDay()
       <ul class="grid grid-cols-1 gap-2 sm:hidden">
         <li v-for="request in data.items" :key="request.id">
           <!-- One column that may shrink: a long first line wraps instead of pushing the card wider than the screen. -->
-          <NuxtLink :to="`/requests/${request.id}`" class="grid grid-cols-1 gap-1.5 rounded-xl border p-3">
+          <NuxtLink
+            :to="`/requests/${request.id}`"
+            class="grid grid-cols-1 gap-1.5 rounded-xl border p-3"
+            :class="[RequestStage.of(request).paint.row, { 'text-muted-foreground': RequestStage.of(request).quiet }]"
+          >
             <div class="flex items-baseline justify-between gap-3">
               <span class="line-clamp-2 min-w-0 font-medium">{{ gist(request) }}</span>
               <span class="shrink-0 font-medium tabular-nums">{{ format.amount(request.amount, request.currency) }}</span>
@@ -316,7 +320,7 @@ const today = calendarDay()
               <ReferenceValue v-for="item in marks(request)" :key="item.id" :item="item" />
             </div>
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-              <StatusBadge :status="request.status" />
+              <StatusBadge :stage="RequestStage.of(request)" />
               <span v-if="who(request)" :class="who(request)!.mine ? 'text-primary font-medium' : 'text-muted-foreground'">
                 {{ who(request)!.text }}
               </span>
@@ -364,6 +368,7 @@ const today = calendarDay()
             v-for="request in data.items"
             :key="request.id"
             class="cursor-pointer"
+            :class="[RequestStage.of(request).paint.row, { 'text-muted-foreground': RequestStage.of(request).quiet }]"
             @click="navigateTo(`/requests/${request.id}`)"
           >
             <TableCell class="text-muted-foreground tabular-nums">
@@ -391,7 +396,7 @@ const today = calendarDay()
               <ReferenceValue v-if="request.payment_form" :item="request.payment_form" />
             </TableCell>
             <TableCell class="whitespace-nowrap">
-              <StatusBadge :status="request.status" />
+              <StatusBadge :stage="RequestStage.of(request)" />
               <p
                 v-if="who(request)"
                 class="mt-0.5 text-xs"

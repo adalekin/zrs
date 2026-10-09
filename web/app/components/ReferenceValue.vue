@@ -1,13 +1,14 @@
 <script setup lang="ts">
 // A value of a reference list as requests show it: a tag in the colour the finance director
 // gave the value, plain text when the value has none. The name is always there to read.
+// The light edge parts the tag from a row painted in a shade close to its own.
 defineProps<{ item: ReferenceItem }>()
 </script>
 
 <template>
   <span
     v-if="item.color"
-    class="inline-flex h-6 max-w-full items-center rounded-md px-2 text-xs font-medium"
+    class="ring-background/80 inline-flex h-6 max-w-full items-center rounded-md px-2 text-xs font-medium ring-1"
     :class="REFERENCE_FILLS[item.color]"
   >
     <span class="truncate">{{ item.name }}</span>

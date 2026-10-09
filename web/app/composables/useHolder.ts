@@ -1,11 +1,15 @@
-/** Says in the words of the interface which party has a request now, or who rejected it. */
+/** Says in the words of the interface which party has a request now, who rejected it or when it was paid. */
 export function useHolder() {
   const { t } = useI18n()
+  const format = useFormat()
 
   return (request: ExpenseRequest): { text: string, mine: boolean } | undefined => {
     // The moderator who rejected is named, like the moderator a request waits for.
     if (request.status === 'rejected' && request.rejected_as) {
       return { text: t(`holder.rejected.${request.rejected_as}`, { name: request.rejected_by?.name }), mine: false }
+    }
+    if (request.status === 'paid' && request.paid_on) {
+      return { text: t('holder.paid', { day: format.day(request.paid_on) }), mine: false }
     }
     const holder = holderOf(request.status)
     if (!holder) {

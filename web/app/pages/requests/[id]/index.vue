@@ -235,13 +235,9 @@ async function removeAttachment(attachment: Attachment) {
   await reload()
 }
 
-const DOTS: Record<Status, string> = {
-  new: 'bg-blue-500',
-  escalated: 'bg-violet-500',
-  approved: 'bg-emerald-500',
-  returned: 'bg-amber-500',
-  paid: 'bg-emerald-600',
-  rejected: 'bg-red-500',
+/** The stage a journal entry brought the request to. Only the request knows who its rejection came from. */
+function stageOf(entry: JournalEntry): RequestStage {
+  return entry === lastChange.value ? RequestStage.of(request.value!) : RequestStage.ofStatus(entry.status)
 }
 </script>
 
@@ -261,7 +257,7 @@ const DOTS: Record<Status, string> = {
           <h1 class="text-xl font-semibold">
             {{ $t('request.title', { id: request.id }) }}
           </h1>
-          <StatusBadge :status="request.status" />
+          <StatusBadge :stage="RequestStage.of(request)" />
           <!-- A returned request has this button in the panel, next to the reason of the return. -->
           <Button
             v-if="request.can_edit && request.status !== 'returned'"
@@ -415,7 +411,7 @@ const DOTS: Record<Status, string> = {
         class="grid gap-3 rounded-xl border p-4"
         :class="{
           'border-primary/30 bg-primary/5': myTurn && request.status !== 'returned',
-          'border-amber-300 bg-amber-50': request.status === 'returned',
+          'border-orange-300 bg-orange-50': request.status === 'returned',
           'border-emerald-200 bg-emerald-50': request.status === 'paid',
           'bg-muted/50': !myTurn && request.status !== 'returned' && request.status !== 'paid',
         }"
@@ -481,13 +477,13 @@ const DOTS: Record<Status, string> = {
           <li v-for="entry in journal" :key="entry.id" class="grid grid-cols-[0.5rem_minmax(0,1fr)] gap-x-3 text-sm">
             <span
               class="mt-1.5 size-2 rounded-full"
-              :class="entry.status_changed ? DOTS[entry.status] : 'bg-border'"
+              :class="entry.status_changed ? stageOf(entry).paint.dot : 'bg-border'"
               aria-hidden="true"
             />
             <div class="grid gap-0.5">
               <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span class="font-medium">{{ entry.person.name }}</span>
-                <StatusBadge v-if="entry.status_changed" :status="entry.status" />
+                <StatusBadge v-if="entry.status_changed" :stage="stageOf(entry)" />
               </div>
               <p v-if="entry.payer_changed">
                 {{ entry.payer ? $t('request.payerSet', { name: entry.payer.name }) : $t('request.payerCleared') }}
