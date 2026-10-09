@@ -24,6 +24,10 @@ settings:
   currencies: []
   # Largest payment document, in bytes
   attachmentMaxBytes: ""
+  # IANA time zone of the people who make the payments, e.g. Europe/Berlin
+  timezone: ""
+  # Time of day in that zone after which a payment is not made the same day, HH:MM in quotes, e.g. "16:30"
+  paymentDayEndsAt: ""
   # Interface language: ru or en
   uiLocale: ""
   # Public URL of the web app, e.g. https://zrs.example.com

@@ -60,6 +60,10 @@ imagePullSecrets:
   value: {{ required "settings.currencies is required" ($settings.currencies | join ",") | quote }}
 - name: ATTACHMENT_MAX_BYTES
   value: {{ required "settings.attachmentMaxBytes is required" $settings.attachmentMaxBytes | quote }}
+- name: TIMEZONE
+  value: {{ required "settings.timezone is required" $settings.timezone | quote }}
+- name: PAYMENT_DAY_ENDS_AT
+  value: {{ required "settings.paymentDayEndsAt is required" $settings.paymentDayEndsAt | quote }}
 - name: S3_ENDPOINT_URL
   value: {{ required "settings.storage.endpointUrl is required" $settings.storage.endpointUrl | quote }}
 - name: S3_BUCKET
