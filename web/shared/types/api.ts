@@ -41,6 +41,17 @@ export interface Me extends Person {
   currencies: string[]
   attachment_max_bytes: number
   payment_day: PaymentDaySetting
+  notifications: {
+    /** Whether the installation sends notifications. */
+    enabled: boolean
+    telegram_linked: boolean
+  }
+}
+
+/** A one-time link that starts the bot of the installation for the current person. */
+export interface TelegramLinkCode {
+  url: string
+  expires_at: string
 }
 
 export interface ReferenceItem {

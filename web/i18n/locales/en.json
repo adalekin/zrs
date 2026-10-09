@@ -2,7 +2,9 @@
   "nav": {
     "requests": "Requests",
     "reference": "Reference lists",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "notifications": "Notifications",
+    "account": "Account"
   },
   "role": {
     "requester": "Employee",
@@ -265,5 +267,15 @@
     "month": "monthly",
     "quarter": "quarterly",
     "year": "yearly"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "off": "Notifications are switched off in this installation.",
+    "about": "The bot writes when a request waits for your action, when your request is approved, rejected or paid, and when somebody comments on it.",
+    "linked": "linked",
+    "link": "Link Telegram",
+    "unlink": "Unlink Telegram",
+    "open": "Open the bot in Telegram",
+    "linkHint": "Press Start in the chat with the bot. The link works once, for 15 minutes; this page updates by itself."
   }
 }

@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { BellIcon } from '@lucide/vue'
+
 const api = useApi()
 const me = useMe()
 
@@ -52,7 +54,25 @@ onMounted(async () => {
               {{ me.roles.map(role => $t(`role.${role}`)).join(', ') }}
             </div>
           </div>
-          <SignOutButton variant="ghost" compact />
+          <!-- With notifications a narrow screen gets one icon that opens both them and the sign-out:
+               its bar has no room for two. -->
+          <template v-if="me.notifications.enabled">
+            <Button
+              as-child
+              variant="ghost"
+              size="icon"
+              class="max-sm:hidden"
+              :aria-label="$t('nav.notifications')"
+              :title="$t('nav.notifications')"
+            >
+              <NuxtLink to="/notifications">
+                <BellIcon />
+              </NuxtLink>
+            </Button>
+            <SignOutButton variant="ghost" class="max-sm:hidden" />
+            <AccountMenu :me="me" class="sm:hidden" />
+          </template>
+          <SignOutButton v-else variant="ghost" compact />
         </div>
       </div>
     </header>
