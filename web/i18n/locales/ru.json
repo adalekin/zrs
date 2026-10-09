@@ -136,6 +136,11 @@
       "payer": "Одобрено, ждёт оплаты",
       "payerNamed": "Одобрено, ждёт оплаты: {name}"
     },
+    "rejected": {
+      "author": "Отменил автор",
+      "moderator": "Отклонил модератор: {name}",
+      "finance_director": "Отклонил финансовый директор"
+    },
     "step": {
       "author": "Автор",
       "moderator": "Модератор",
@@ -227,7 +232,12 @@
     "moderator": "у модератора: {name}",
     "finance_director": "у финансового директора",
     "payer": "ждёт оплаты",
-    "payerNamed": "ждёт оплаты: {name}"
+    "payerNamed": "ждёт оплаты: {name}",
+    "rejected": {
+      "author": "отменил автор",
+      "moderator": "отклонил модератор: {name}",
+      "finance_director": "отклонил финансовый директор"
+    }
   },
   "board": {
     "at": {

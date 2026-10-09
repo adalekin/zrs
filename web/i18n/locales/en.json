@@ -136,6 +136,11 @@
       "payer": "Approved, waits for payment",
       "payerNamed": "Approved, waits for payment by {name}"
     },
+    "rejected": {
+      "author": "Cancelled by the author",
+      "moderator": "Rejected by the moderator: {name}",
+      "finance_director": "Rejected by the finance director"
+    },
     "step": {
       "author": "Author",
       "moderator": "Moderator",
@@ -227,7 +232,12 @@
     "moderator": "with the moderator: {name}",
     "finance_director": "with the finance director",
     "payer": "waits for payment",
-    "payerNamed": "waits for payment by {name}"
+    "payerNamed": "waits for payment by {name}",
+    "rejected": {
+      "author": "cancelled by the author",
+      "moderator": "rejected by the moderator: {name}",
+      "finance_director": "rejected by the finance director"
+    }
   },
   "board": {
     "at": {

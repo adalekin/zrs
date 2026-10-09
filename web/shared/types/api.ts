@@ -61,6 +61,9 @@ export interface Attachment {
   created_at: string
 }
 
+/** What the person who rejected a request was to it: the author cancels, the other two reject. */
+export type RejectedAs = 'author' | 'moderator' | 'finance_director'
+
 export interface ExpenseRequest {
   id: number
   status: Status
@@ -78,6 +81,9 @@ export interface ExpenseRequest {
   payment_period: string
   deadline: string | null
   paid_on: string | null
+  /** Who rejected or cancelled the request. */
+  rejected_by: Person | null
+  rejected_as: RejectedAs | null
   created_at: string
   updated_at: string
 }

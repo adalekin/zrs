@@ -59,9 +59,12 @@ const AT_WILL: Action[] = ['cancel', 'reassign']
 const myTurn = computed(() => request.value!.actions.some(action => !AT_WILL.includes(action)))
 
 const panelTitle = computed(() => {
-  const { status, author, moderator, payer } = request.value!
+  const { status, author, moderator, payer, rejected_as, rejected_by } = request.value!
   if (myTurn.value) {
     return t(`request.turn.${status}`)
+  }
+  if (status === 'rejected' && rejected_as) {
+    return t(`request.rejected.${rejected_as}`, { name: rejected_by?.name })
   }
   if (!holder.value) {
     return t(`status.${status}`)
