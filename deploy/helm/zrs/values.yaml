@@ -28,6 +28,15 @@ settings:
   timezone: ""
   # Time of day in that zone after which a payment is not made the same day, HH:MM in quotes, e.g. "16:30"
   paymentDayEndsAt: ""
+  # Messages to people about requests: telegram or off
+  notifications: ""
+  # With notifications: telegram
+  telegram:
+    # Name of the bot without the at sign
+    botUsername: ""
+    # How the server reaches api.telegram.org: direct or proxy.
+    # With proxy the address is the TELEGRAM_PROXY_URL key of the Secret: it may carry a password.
+    egress: ""
   # Interface language: ru or en
   uiLocale: ""
   # Public URL of the web app, e.g. https://zrs.example.com
@@ -45,6 +54,7 @@ settings:
 # Secret settings. Either name an existing Secret holding the keys below, or put the values here
 # and the chart creates the Secret.
 #   DB_PASSWORD, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY, OIDC_CLIENT_SECRET, AUTH_SECRET
+#   with notifications: telegram also TELEGRAM_BOT_TOKEN and, with egress: proxy, TELEGRAM_PROXY_URL
 secrets:
   existingSecret: ""
   values:
@@ -54,6 +64,10 @@ secrets:
     oidcClientSecret: ""
     # Random string that encrypts the session cookie
     authSecret: ""
+    # Token of the bot, with settings.notifications: telegram
+    telegramBotToken: ""
+    # Address of the proxy, e.g. socks5://user:password@proxy.internal:1080, with settings.telegram.egress: proxy
+    telegramProxyUrl: ""
 
 server:
   image:

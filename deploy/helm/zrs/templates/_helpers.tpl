@@ -64,6 +64,30 @@ imagePullSecrets:
   value: {{ required "settings.timezone is required" $settings.timezone | quote }}
 - name: PAYMENT_DAY_ENDS_AT
   value: {{ required "settings.paymentDayEndsAt is required" $settings.paymentDayEndsAt | quote }}
+- name: NOTIFICATIONS
+  value: {{ required "settings.notifications is required: telegram or off" $settings.notifications | quote }}
+{{- if eq $settings.notifications "telegram" }}
+- name: TELEGRAM_BOT_USERNAME
+  value: {{ required "settings.telegram.botUsername is required with settings.notifications: telegram" $settings.telegram.botUsername | quote }}
+- name: TELEGRAM_EGRESS
+  value: {{ required "settings.telegram.egress is required with settings.notifications: telegram: direct or proxy" $settings.telegram.egress | quote }}
+- name: TELEGRAM_BOT_TOKEN
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "zrs.secretName" . }}
+      key: TELEGRAM_BOT_TOKEN
+{{- if eq $settings.telegram.egress "proxy" }}
+- name: TELEGRAM_PROXY_URL
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "zrs.secretName" . }}
+      key: TELEGRAM_PROXY_URL
+{{- end }}
+- name: AUTH_ORIGIN
+  value: {{ required "settings.publicUrl is required" $settings.publicUrl | quote }}
+- name: UI_LOCALE
+  value: {{ required "settings.uiLocale is required" $settings.uiLocale | quote }}
+{{- end }}
 - name: S3_ENDPOINT_URL
   value: {{ required "settings.storage.endpointUrl is required" $settings.storage.endpointUrl | quote }}
 - name: S3_BUCKET

@@ -17,6 +17,10 @@ settings:
   attachmentMaxBytes: 10485760
   timezone: Europe/Berlin
   paymentDayEndsAt: "16:30"
+  notifications: telegram
+  telegram:
+    botUsername: zrs_example_bot
+    egress: proxy
   uiLocale: en
   publicUrl: https://zrs.example.com
   storage:
