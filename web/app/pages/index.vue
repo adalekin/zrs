@@ -21,6 +21,9 @@ const waiting = computed(() => queue.value?.total)
 // a queue longer than one page of the API marks its first hundred.
 const waitingIds = computed(() => new Set(queue.value?.items.map(request => request.id)))
 
+// What this person left on the page in this browser: see the watcher of the address below.
+const memory = new RequestViewMemory(() => localStorage, me.value!.id)
+
 // The tab, the layout, the order, the status filter and the page number live in the address of the page.
 // A narrow screen has one layout: a column of the board there would be the list filtered by a status.
 const narrow = useNarrow()
@@ -74,7 +77,12 @@ const pages = computed(() => data.value ? Math.max(1, Math.ceil(data.value.total
  */
 function show(change: { awaiting_me?: string, view?: string, layout?: string, sort?: string, status?: string, page?: string }) {
   const { awaiting_me, view, layout, sort } = route.query
-  router.replace({ query: { awaiting_me, view, layout, sort, ...change } })
+  const query = { awaiting_me, view, layout, sort, ...change }
+  // A choice that leaves nothing set is a choice too: the page is back as it opens by itself, and nothing brings the old view back.
+  if (!RequestView.named(query)) {
+    memory.forget()
+  }
+  router.replace({ query })
 }
 
 function setStatus(value: Status | undefined) {
@@ -110,6 +118,21 @@ function setLayout(value: 'list' | 'board') {
 watch([layout, () => route.query.sort], () => {
   if (layout.value === 'board' && route.query.sort !== undefined && route.query.sort !== sort.value) {
     show({ sort: undefined })
+  }
+}, { immediate: true })
+
+// The page remembers how it was left. An address that names a view is shown as it is, and what it
+// names becomes what is remembered. An address that names none is filled from what this person left in
+// this browser: so open the link of the section and a new visit.
+watch(() => route.query, (query) => {
+  const named = RequestView.named(query)
+  if (named) {
+    memory.keep(named)
+    return
+  }
+  const left = memory.recall()
+  if (left) {
+    router.replace({ query: { ...query, ...left.toQuery() } })
   }
 }, { immediate: true })
 
