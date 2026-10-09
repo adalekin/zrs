@@ -28,10 +28,14 @@ class ExpenseRequest(MixinWithAutoNow, Base):
 
     status: Mapped[str] = mapped_column(String(16), index=True)
     paid_on: Mapped[datetime.date | None] = mapped_column(Date)
+    #: Who took the request to the rejected status, and what they were to it then (a ``Party``).
+    rejected_by_id: Mapped[int | None] = mapped_column(ForeignKey("person.id"))
+    rejected_as: Mapped[str | None] = mapped_column(String(16))
 
     author: Mapped[Person] = relationship(foreign_keys=[author_id], lazy="joined")
     moderator: Mapped[Person] = relationship(foreign_keys=[moderator_id], lazy="joined")
     payer: Mapped[Person | None] = relationship(foreign_keys=[payer_id], lazy="joined")
+    rejected_by: Mapped[Person | None] = relationship(foreign_keys=[rejected_by_id], lazy="joined")
     operation_type: Mapped[ReferenceItem] = relationship(foreign_keys=[operation_type_id], lazy="joined")
     payment_form: Mapped[ReferenceItem | None] = relationship(foreign_keys=[payment_form_id], lazy="joined")
     priority: Mapped[ReferenceItem] = relationship(foreign_keys=[priority_id], lazy="joined")

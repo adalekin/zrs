@@ -217,6 +217,10 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
                 request.payer_id = actor.id
                 request.paid_on = parameters["paid_on"]
 
+            if transition.target is Status.REJECTED:
+                request.rejected_by_id = actor.id
+                request.rejected_as = transition.party.value
+
             status_changed = transition.target is not transition.source
             request.status = transition.target.value
             # An action that changed nothing leaves an entry only when it carries a comment.

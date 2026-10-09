@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from internal.dto.person import PersonRead
 from internal.dto.reference_item import ReferenceItemRead
-from internal.entity.enums import Action, Status
+from internal.entity.enums import Action, Party, Status
 
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
@@ -102,6 +102,8 @@ class RequestRead(BaseModel):
     payment_period: str
     deadline: datetime.date | None
     paid_on: datetime.date | None
+    rejected_by: PersonRead | None = Field(description="Who rejected or cancelled the request")
+    rejected_as: Party | None = Field(description="What that person was to the request when they did")
     created_at: datetime.datetime
     updated_at: datetime.datetime
 

@@ -5,27 +5,14 @@ the API applies actions through this table and reports available actions from it
 """
 
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Any
 
 from approck_fastapi_utils.exceptions import Forbidden
 
-from internal.entity.enums import Action, Role, Status
+from internal.entity.enums import Action, Party, Role, Status
 from internal.entity.expense_request import ExpenseRequest
 from internal.exceptions import FieldInvalid, StatusConflict
 from internal.service.actor import Actor
-
-
-class Party(StrEnum):
-    """What a person is to one particular request."""
-
-    AUTHOR = "author"
-    MODERATOR = "moderator"
-    #: The second level of approval: a finance director who is neither the author nor the moderator.
-    FINANCE_DIRECTOR = "finance_director"
-    #: Anyone with the finance director role: disposes of who pays, checks nobody's decision.
-    FINANCE_STEWARD = "finance_steward"
-    PAYER = "payer"
 
 
 @dataclass(frozen=True)

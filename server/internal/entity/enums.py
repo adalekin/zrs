@@ -28,6 +28,18 @@ class Action(StrEnum):
     REASSIGN = "reassign"
 
 
+class Party(StrEnum):
+    """What a person is to one particular request."""
+
+    AUTHOR = "author"
+    MODERATOR = "moderator"
+    #: The second level of approval: a finance director who is neither the author nor the moderator.
+    FINANCE_DIRECTOR = "finance_director"
+    #: Anyone with the finance director role: disposes of who pays, checks nobody's decision.
+    FINANCE_STEWARD = "finance_steward"
+    PAYER = "payer"
+
+
 class ReferenceKind(StrEnum):
     OPERATION_TYPE = "operation_type"
     PAYMENT_FORM = "payment_form"
