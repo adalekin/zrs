@@ -14,7 +14,7 @@ from internal.dto.expense_request import (
     RequestRead,
     RequestUpdate,
 )
-from internal.entity.enums import Action, Status
+from internal.entity.enums import Action, RequestSort, Status
 from internal.entity.expense_request import ExpenseRequest
 from internal.service import transitions
 from internal.service.actor import Actor
@@ -36,16 +36,23 @@ def _detail(actor: Actor, request: ExpenseRequest) -> RequestDetail:
     )
 
 
-@router.get("", response_model=RequestPage, summary="Requests visible to the current person, newest first")
+@router.get("", response_model=RequestPage, summary="Requests visible to the current person")
 async def list_requests(
     status_: Status | None = Query(None, alias="status"),
     awaiting_me: bool = Query(False, description="Only the requests that wait for the current person's action"),
+    sort: RequestSort = Query(
+        RequestSort.CREATED_DESC,
+        description=(
+            "The order of the list; a minus turns it over. By priority and by deadline the finished requests "
+            "stand below the rest, and a request without a deadline stands below the ones that have it"
+        ),
+    ),
     page: int = Query(1, ge=1),
     size: int = Query(20, ge=1, le=100),
     actor: Actor = Depends(get_actor),
     service: ExpenseRequestService = Depends(),
 ) -> RequestPage:
-    items, total = await service.page(actor, status=status_, awaiting_me=awaiting_me, page=page, size=size)
+    items, total = await service.page(actor, status=status_, awaiting_me=awaiting_me, sort=sort, page=page, size=size)
     return RequestPage(
         items=[RequestRead.model_validate(item) for item in items],
         total=total,

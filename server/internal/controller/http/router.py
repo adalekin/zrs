@@ -1,12 +1,13 @@
 from fastapi import APIRouter
 
 from internal.controller.http import health
-from internal.controller.http.v1 import people, reference_items, requests
+from internal.controller.http.v1 import people, reference_items, request_totals, requests
 
 v1_router = APIRouter(prefix="/v1")
 v1_router.include_router(people.router)
 v1_router.include_router(reference_items.router)
 v1_router.include_router(requests.router)
+v1_router.include_router(request_totals.router)
 
 api_router = APIRouter()
 api_router.include_router(health.router)

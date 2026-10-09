@@ -29,6 +29,10 @@ class DuplicateReferenceItem(Conflict):
     pass
 
 
+class ReferenceListUnordered(Conflict):
+    """The value belongs to a list that has no order: only priorities have places."""
+
+
 class AttachmentTooLarge(CustomException):
     status_code = 413
 

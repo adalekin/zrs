@@ -48,6 +48,9 @@ TRANSITIONS: tuple[Transition, ...] = (
     Transition(Action.PAY, Status.APPROVED, Status.PAID, Party.PAYER),
 )
 
+#: Statuses no transition leaves: the request is finished.
+FINAL_STATUSES: frozenset[Status] = frozenset(Status) - {transition.source for transition in TRANSITIONS}
+
 #: Statuses in which the author may change the fields and the attachments of a request.
 EDITABLE_STATUSES: frozenset[Status] = frozenset({Status.NEW, Status.RETURNED})
 

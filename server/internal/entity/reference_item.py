@@ -1,6 +1,6 @@
 from approck_sqlalchemy_utils.mixins.auto_now import MixinWithAutoNow
 from approck_sqlalchemy_utils.model import Base
-from sqlalchemy import Boolean, String, UniqueConstraint, true
+from sqlalchemy import Boolean, Integer, String, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 
@@ -14,3 +14,6 @@ class ReferenceItem(MixinWithAutoNow, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default=true())
     # The colour the lists and the request show the value in; a value without one stays plain.
     color: Mapped[str | None] = mapped_column(String(16))
+    # The place of a priority among the priorities, from 1, the most important first.
+    # The other two lists have no order and leave it empty.
+    position: Mapped[int | None] = mapped_column(Integer)

@@ -13,13 +13,15 @@ from sqlalchemy.orm import lazyload
 
 from internal.config import settings
 from internal.dto.expense_request import RequestCreate, RequestUpdate
-from internal.entity.enums import Action, ReferenceKind, Role, Status
+from internal.dto.request_totals import AmountTotal, RequestTotals
+from internal.entity.enums import Action, ReferenceKind, RequestSort, Role, Status
 from internal.entity.expense_request import ExpenseRequest, JournalEntry
 from internal.exceptions import FieldInvalid, StatusConflict
 from internal.service import transitions
 from internal.service.actor import Actor
 from internal.service.person import PersonService
 from internal.service.reference_item import ReferenceItemService
+from internal.service.request_order import ORDERS
 
 #: Request fields that reference a list, with the list they must come from and whether a value is required.
 REFERENCE_FIELDS: dict[str, tuple[ReferenceKind, bool]] = {
@@ -107,6 +109,7 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
         *,
         status: Status | None,
         awaiting_me: bool,
+        sort: RequestSort,
         page: int,
         size: int,
     ) -> tuple[Sequence[ExpenseRequest], int]:
@@ -121,11 +124,30 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             select(ExpenseRequest)
             .where(*conditions)
             .options(lazyload(ExpenseRequest.journal), lazyload(ExpenseRequest.attachments))
-            .order_by(ExpenseRequest.created_at.desc(), ExpenseRequest.id.desc())
+            .order_by(*ORDERS[sort])
             .limit(size)
             .offset((page - 1) * size)
         )
         return await self._find(statement), total or 0
+
+    async def totals(self, actor: Actor, *, awaiting_me: bool) -> list[RequestTotals]:
+        """Counts and sums per status over the same requests ``page`` would list, however many there are."""
+        conditions = [VisibleTo(actor).clause()]
+        if awaiting_me:
+            conditions.append(AwaitingActionOf(actor).clause())
+
+        statement = (
+            select(ExpenseRequest.status, ExpenseRequest.currency, func.count(), func.sum(ExpenseRequest.amount))
+            .where(*conditions)
+            .group_by(ExpenseRequest.status, ExpenseRequest.currency)
+            .order_by(ExpenseRequest.currency)
+        )
+        totals = {status: RequestTotals(status=status, count=0, amounts=[]) for status in Status}
+        for status, currency, count, amount in await self.session.execute(statement):
+            entry = totals[Status(status)]
+            entry.count += count
+            entry.amounts.append(AmountTotal(currency=currency, amount=amount))
+        return list(totals.values())
 
     # --- writing ---
 

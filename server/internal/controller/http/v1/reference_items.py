@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, status
 
 from internal.controller.http.deps import get_actor, require_role
-from internal.dto.reference_item import ReferenceItemCreate, ReferenceItemRead, ReferenceItemUpdate
+from internal.dto.reference_item import (
+    ReferenceItemCreate,
+    ReferenceItemPlace,
+    ReferenceItemRead,
+    ReferenceItemUpdate,
+)
 from internal.entity.enums import Role
 from internal.service.actor import Actor
 from internal.service.reference_item import ReferenceItemFilter, ReferenceItemService
@@ -46,3 +51,17 @@ async def update_reference_item(
     service: ReferenceItemService = Depends(),
 ):
     return await service.update(item_id, dto)
+
+
+@router.post(
+    "/{item_id}/position",
+    response_model=ReferenceItemRead,
+    summary="Put a priority on another place of its list",
+)
+async def move_reference_item(
+    item_id: int,
+    dto: ReferenceItemPlace,
+    _: Actor = Depends(finance_director_only),
+    service: ReferenceItemService = Depends(),
+):
+    return await service.move(item_id, dto.position)

@@ -33,6 +33,17 @@ class ReferenceKind(StrEnum):
     PRIORITY = "priority"
 
 
+class RequestSort(StrEnum):
+    """The order of a list of requests. A minus turns the order over."""
+
+    CREATED = "created"
+    CREATED_DESC = "-created"
+    PRIORITY = "priority"
+    PRIORITY_DESC = "-priority"
+    DEADLINE = "deadline"
+    DEADLINE_DESC = "-deadline"
+
+
 class ReferenceColor(StrEnum):
     RED = "red"
     ORANGE = "orange"
