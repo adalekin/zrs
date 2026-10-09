@@ -11,6 +11,10 @@ export function useHolder() {
     if (request.status === 'paid' && request.paid_on) {
       return { text: t('holder.paid', { day: format.day(request.paid_on) }), mine: false }
     }
+    // A recurring request paid for this period waits for nobody till the next one starts.
+    if (request.next_payment_from) {
+      return { text: t('holder.nextPayment', { day: format.day(request.next_payment_from) }), mine: false }
+    }
     const holder = holderOf(request.status)
     if (!holder) {
       return undefined

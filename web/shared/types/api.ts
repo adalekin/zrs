@@ -6,7 +6,11 @@ export type Role = (typeof ROLES)[number]
 export const STATUSES = ['new', 'returned', 'escalated', 'approved', 'paid', 'rejected'] as const
 export type Status = (typeof STATUSES)[number]
 
-export type Action = 'approve' | 'escalate' | 'return' | 'reject' | 'resubmit' | 'cancel' | 'pay' | 'reassign'
+export type Action = 'approve' | 'escalate' | 'return' | 'reject' | 'resubmit' | 'cancel' | 'pay' | 'reassign' | 'finish'
+
+/** How often a request is paid: once in every calendar period of this length. */
+export const RECURRENCES = ['week', 'month', 'quarter', 'year'] as const
+export type Recurrence = (typeof RECURRENCES)[number]
 
 export const REFERENCE_KINDS = ['operation_type', 'payment_form', 'priority'] as const
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
@@ -87,9 +91,15 @@ export interface ExpenseRequest {
   /** Decimal number as a string, for example "1590.0000". */
   amount: string
   currency: string
-  payment_period: string
+  /** What the recurrence does not say about when to pay, in the words of the author. */
+  payment_period: string | null
+  /** Empty for a request paid once. */
+  recurrence: Recurrence | null
   deadline: string | null
+  /** The date of the latest payment. */
   paid_on: string | null
+  /** The day a recurring request paid for this period comes back to its payer; empty while it waits for a payment. */
+  next_payment_from: string | null
   /** Who rejected or cancelled the request. */
   rejected_by: Person | null
   rejected_as: RejectedAs | null
@@ -97,9 +107,20 @@ export interface ExpenseRequest {
   updated_at: string
 }
 
+export interface Payment {
+  id: number
+  person: Person
+  paid_on: string
+  /** Decimal number as a string, in the currency of the request. */
+  amount: string
+  created_at: string
+}
+
 export interface ExpenseRequestDetail extends ExpenseRequest {
   attachments: Attachment[]
   journal: JournalEntry[]
+  /** The latest first. */
+  payments: Payment[]
   /** Actions the current person may apply right now. */
   actions: Action[]
   /** Whether the current person may change fields and attachments right now. */

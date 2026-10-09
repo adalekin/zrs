@@ -28,7 +28,8 @@ interface Payload {
   solution: string
   amount: string
   currency: string
-  payment_period: string
+  payment_period: string | null
+  recurrence: Recurrence | null
   payment_form_id: number | null
   priority_id: number | null
   deadline: string | null
@@ -49,7 +50,8 @@ const baseline: Fields = reactive(request
       solution: request.solution,
       amount: typedAmount(request.amount, locale.value),
       currency: request.currency,
-      payment_period: request.payment_period,
+      payment_period: request.payment_period ?? '',
+      recurrence: request.recurrence ?? '',
       payment_form_id: request.payment_form ? String(request.payment_form.id) : '',
       priority_id: String(request.priority.id),
       deadline: request.deadline ?? '',
@@ -63,6 +65,7 @@ const baseline: Fields = reactive(request
       amount: '',
       currency: '',
       payment_period: '',
+      recurrence: '',
       payment_form_id: '',
       priority_id: '',
       deadline: '',
@@ -109,7 +112,8 @@ function payload(fields: Fields): Payload {
     solution: fields.solution,
     amount: parseAmount(fields.amount, locale.value),
     currency: fields.currency,
-    payment_period: fields.payment_period,
+    payment_period: fields.payment_period.trim() === '' ? null : fields.payment_period,
+    recurrence: RECURRENCES.find(value => value === fields.recurrence) ?? null,
     payment_form_id: idOrNull(fields.payment_form_id),
     priority_id: idOrNull(fields.priority_id),
     deadline: fields.deadline === '' ? null : fields.deadline,
@@ -251,12 +255,6 @@ watch(() => ({ ...form }), (now, before) => {
 })
 
 const invalid = (field: keyof Fields) => errors.value[field] ? true : undefined
-
-const periodChoices = computed(() => [
-  t('request.period.once'),
-  t('request.period.monthly'),
-  t('request.period.yearly'),
-])
 
 async function upload(id: number): Promise<string[]> {
   const failed: string[] = []
@@ -461,34 +459,26 @@ async function submit() {
         </div>
       </FormField>
 
+      <FormField id="recurrence" class="sm:col-span-3" :label="$t('field.recurrence')" :error="errors.recurrence">
+        <NativeSelect id="recurrence" v-model="form.recurrence" class="w-full" :aria-invalid="invalid('recurrence')">
+          <NativeSelectOption value="">
+            {{ $t('recurrence.once') }}
+          </NativeSelectOption>
+          <NativeSelectOption v-for="value in RECURRENCES" :key="value" :value="value">
+            {{ $t(`recurrence.${value}`) }}
+          </NativeSelectOption>
+        </NativeSelect>
+      </FormField>
+
+      <!-- What the recurrence does not say: a day of the month, the months of a season. -->
       <FormField
         id="payment-period"
-        class="sm:col-span-3"
+        class="col-span-full"
         :label="$t('field.paymentPeriod')"
-        required
+        :hint="$t('field.paymentPeriodHint')"
         :error="errors.payment_period"
       >
-        <Input
-          id="payment-period"
-          v-model="form.payment_period"
-          aria-required="true"
-          :aria-invalid="invalid('payment_period')"
-        />
-        <!-- The usual answers in one click; the field stays free text. -->
-        <div class="flex flex-wrap gap-1.5">
-          <Button
-            v-for="choice in periodChoices"
-            :key="choice"
-            type="button"
-            variant="outline"
-            size="xs"
-            class="rounded-full font-normal"
-            tabindex="-1"
-            @click="form.payment_period = choice"
-          >
-            {{ choice }}
-          </Button>
-        </div>
+        <Input id="payment-period" v-model="form.payment_period" :aria-invalid="invalid('payment_period')" />
       </FormField>
 
       <FormField

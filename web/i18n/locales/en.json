@@ -41,7 +41,10 @@
     "paidOn": "Payment date",
     "createdAt": "Created",
     "request": "Request",
-    "submittedAt": "Submitted"
+    "submittedAt": "Submitted",
+    "recurrence": "Recurrence",
+    "paidAmount": "Amount paid",
+    "paymentPeriodHint": "a note if needed: by the 5th, from November to March"
   },
   "action": {
     "approveNew": "Approve",
@@ -52,7 +55,8 @@
     "resubmit": "Submit again",
     "cancel": "Cancel the request",
     "pay": "Mark as paid",
-    "reassign": "Change the payer"
+    "reassign": "Change the payer",
+    "finish": "Finish the request"
   },
   "requests": {
     "title": "Requests",
@@ -111,11 +115,6 @@
     "filesFailed": "Request {id} is submitted, but these files did not upload: {files}. Add them again here",
     "dropFiles": "Drop files here or choose them",
     "namedFileTooLarge": "{name}: the file exceeds the limit of {limit}",
-    "period": {
-      "once": "one-time",
-      "monthly": "monthly",
-      "yearly": "yearly"
-    },
     "blocked": {
       "title": "A request cannot be submitted yet",
       "operationType": "The \"Operation types\" list is empty. The finance director fills it in.",
@@ -136,7 +135,8 @@
       "moderator": "With the moderator: {name}",
       "finance_director": "With the finance director",
       "payer": "Approved, waits for payment",
-      "payerNamed": "Approved, waits for payment by {name}"
+      "payerNamed": "Approved, waits for payment by {name}",
+      "nextPayment": "Paid, the next payment from {day}"
     },
     "rejected": {
       "author": "Cancelled by the author",
@@ -153,7 +153,8 @@
     "fixHint": "Correct the request and send it again.",
     "sending": "Sending…",
     "uploading": "Uploading files: {done} of {total}",
-    "anyPayer": "Any payer"
+    "anyPayer": "Any payer",
+    "payments": "Payments"
   },
   "reference": {
     "title": "Reference lists",
@@ -240,7 +241,8 @@
       "author": "cancelled by the author",
       "moderator": "rejected by the moderator: {name}",
       "finance_director": "rejected by the finance director"
-    }
+    },
+    "nextPayment": "the next payment from {day}"
   },
   "board": {
     "at": {
@@ -254,6 +256,14 @@
     "finished": "Finished",
     "number": "No. {id}",
     "until": "by {day}",
-    "payer": "payer: {name}"
+    "payer": "payer: {name}",
+    "nextPayment": "payment from {day}"
+  },
+  "recurrence": {
+    "once": "Paid once",
+    "week": "weekly",
+    "month": "monthly",
+    "quarter": "quarterly",
+    "year": "yearly"
   }
 }

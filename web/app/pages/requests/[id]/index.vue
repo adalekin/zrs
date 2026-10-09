@@ -2,7 +2,7 @@
 import { CheckIcon, PaperclipIcon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const api = useApi()
 const format = useFormat()
@@ -53,13 +53,15 @@ const sideways = computed(() => request.value!.actions.filter(action => !FORWARD
 const stopping = computed(() => request.value!.actions.filter(action => STOPPING.includes(action)))
 
 // Actions a person may take at any time: they do not make the request wait for that person.
-const AT_WILL: Action[] = ['cancel', 'reassign']
+const AT_WILL: Action[] = ['cancel', 'reassign', 'finish']
 
 /** The request waits for the person looking: the server offers them an action that moves it. */
-const myTurn = computed(() => request.value!.actions.some(action => !AT_WILL.includes(action)))
+const myTurn = computed(() =>
+  // A recurring request paid for this period can be paid again, yet it waits for nobody.
+  !request.value!.next_payment_from && request.value!.actions.some(action => !AT_WILL.includes(action)))
 
 const panelTitle = computed(() => {
-  const { status, author, moderator, payer, rejected_as, rejected_by } = request.value!
+  const { status, author, moderator, payer, rejected_as, rejected_by, next_payment_from } = request.value!
   if (myTurn.value) {
     return t(`request.turn.${status}`)
   }
@@ -68,6 +70,9 @@ const panelTitle = computed(() => {
   }
   if (!holder.value) {
     return t(`status.${status}`)
+  }
+  if (next_payment_from) {
+    return t('request.at.nextPayment', { day: format.day(next_payment_from) })
   }
   if (holder.value === 'payer') {
     return payer ? t('request.at.payerNamed', { name: payer.name }) : t('request.at.payer')
@@ -89,6 +94,7 @@ const editing = ref(false)
 const pending = ref<Action>()
 const actionComment = ref('')
 const paidOn = ref('')
+const paidAmount = ref('')
 const payerId = ref('')
 const actionErrors = ref<Record<string, string>>({})
 const sending = ref(false)
@@ -111,6 +117,8 @@ async function ask(action: Action) {
   pending.value = action
   actionComment.value = ''
   paidOn.value = ''
+  // The agreed amount, to be corrected when the bill of this period differs.
+  paidAmount.value = typedAmount(request.value!.amount, locale.value)
   payerId.value = request.value!.payer ? String(request.value!.payer.id) : ''
   actionErrors.value = {}
   if (NAMES_PAYER.includes(action) && !payers.value) {
@@ -142,6 +150,7 @@ async function apply() {
       body: {
         comment: actionComment.value.trim() || undefined,
         paid_on: action === 'pay' ? paidOn.value || undefined : undefined,
+        amount: action === 'pay' ? parseAmount(paidAmount.value, locale.value) || undefined : undefined,
         payer_id: payerOf(action),
       },
     })
@@ -275,7 +284,8 @@ function stageOf(entry: JournalEntry): RequestStage {
           </p>
           <p class="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-1.5 text-sm">
             <ReferenceValue :item="request.operation_type" />
-            <span>· {{ request.payment_period }}</span>
+            <RecurrenceMark v-if="request.recurrence" :recurrence="request.recurrence" />
+            <span v-if="request.payment_period">· {{ request.payment_period }}</span>
           </p>
         </div>
         <ol v-if="steps.length > 0" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -373,6 +383,13 @@ function stageOf(entry: JournalEntry): RequestStage {
         </div>
       </dl>
 
+      <section v-if="request.payments.length > 0" class="grid gap-3 border-t pt-6">
+        <h2 class="font-semibold">
+          {{ $t('request.payments') }}
+        </h2>
+        <RequestPayments :payments="request.payments" :currency="request.currency" />
+      </section>
+
       <section class="grid gap-3 border-t pt-6">
         <h2 class="font-semibold">
           {{ $t('field.attachments') }}
@@ -434,7 +451,14 @@ function stageOf(entry: JournalEntry): RequestStage {
         </p>
 
         <div v-if="forward.length > 0 || sideways.length > 0" class="grid gap-2">
-          <Button v-for="action in forward" :key="action" @click="ask(action)">
+          <!-- A request that waits for nobody keeps its action, without the weight of a call. -->
+          <Button
+            v-for="action in forward"
+            :key="action"
+            :variant="myTurn ? 'default' : 'outline'"
+            :class="{ 'bg-background': !myTurn }"
+            @click="ask(action)"
+          >
             {{ actionLabel(action) }}
           </Button>
           <Button
@@ -526,6 +550,25 @@ function stageOf(entry: JournalEntry): RequestStage {
             :error="actionErrors.paid_on"
           >
             <Input id="paid-on" v-model="paidOn" type="date" class="w-fit" required />
+          </FormField>
+          <FormField
+            v-if="pending === 'pay'"
+            id="paid-amount"
+            :label="$t('field.paidAmount')"
+            required
+            :error="actionErrors.amount"
+          >
+            <div class="flex w-56">
+              <Input
+                id="paid-amount"
+                v-model="paidAmount"
+                inputmode="decimal"
+                class="rounded-r-none text-right tabular-nums"
+                required
+                :aria-invalid="actionErrors.amount ? true : undefined"
+              />
+              <span class="border-input bg-muted/50 text-muted-foreground -ml-px flex h-8 shrink-0 items-center rounded-r-lg border px-2.5 text-sm">{{ request.currency }}</span>
+            </div>
           </FormField>
           <FormField
             v-if="NAMES_PAYER.includes(pending)"

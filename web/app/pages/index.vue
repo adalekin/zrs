@@ -318,6 +318,7 @@ const today = calendarDay()
             </div>
             <div class="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <ReferenceValue v-for="item in marks(request)" :key="item.id" :item="item" />
+              <RecurrenceMark v-if="request.recurrence" :recurrence="request.recurrence" />
             </div>
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <StatusBadge :stage="RequestStage.of(request)" />
@@ -391,6 +392,9 @@ const today = calendarDay()
             </TableCell>
             <TableCell class="text-right font-medium whitespace-nowrap tabular-nums">
               {{ format.amount(request.amount, request.currency) }}
+              <p v-if="request.recurrence" class="mt-0.5">
+                <RecurrenceMark :recurrence="request.recurrence" />
+              </p>
             </TableCell>
             <TableCell class="text-muted-foreground text-xs">
               <ReferenceValue v-if="request.payment_form" :item="request.payment_form" />

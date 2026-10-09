@@ -31,6 +31,13 @@ const payer = computed(() => holderOf(props.request.status) === 'payer' ? props.
       <span class="text-foreground text-base font-semibold tabular-nums">{{ format.amount(request.amount, request.currency) }}</span>
       <ReferenceValue v-if="request.payment_form" :item="request.payment_form" />
     </div>
+    <!-- How often the request is paid and, once it is paid for this period, when it comes back. -->
+    <p v-if="request.recurrence" class="text-muted-foreground flex items-center gap-1.5 text-xs">
+      <RecurrenceMark :recurrence="request.recurrence" />
+      <span v-if="request.next_payment_from" class="truncate">
+        · {{ $t('board.nextPayment', { day: format.day(request.next_payment_from) }) }}
+      </span>
+    </p>
     <div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
       <!-- A long name gives way, the number does not: it is what people call the request by. -->
       <span class="flex min-w-0">
