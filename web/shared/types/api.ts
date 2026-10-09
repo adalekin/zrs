@@ -14,6 +14,10 @@ export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 export const REFERENCE_COLORS = ['red', 'orange', 'yellow', 'green', 'teal', 'blue', 'violet', 'pink'] as const
 export type ReferenceColor = (typeof REFERENCE_COLORS)[number]
 
+/** The orders of a list of requests; a minus turns the order over. */
+export const REQUEST_SORTS = ['created', '-created', 'priority', '-priority', 'deadline', '-deadline'] as const
+export type RequestSort = (typeof REQUEST_SORTS)[number]
+
 export interface Person {
   id: number
   name: string
@@ -33,6 +37,8 @@ export interface ReferenceItem {
   is_active: boolean
   /** The colour the finance director gave the value; null when it has none. */
   color: ReferenceColor | null
+  /** The place of a priority in its list, from 1; null in the lists without an order. */
+  position: number | null
 }
 
 export interface JournalEntry {
@@ -80,6 +86,14 @@ export interface ExpenseRequestDetail extends ExpenseRequest {
   actions: Action[]
   /** Whether the current person may change fields and attachments right now. */
   can_edit: boolean
+}
+
+/** How many requests of one status a person sees and how much they add up to, per currency. */
+export interface RequestTotals {
+  status: Status
+  count: number
+  /** Decimal numbers as strings, like the amount of a request. */
+  amounts: { currency: string, amount: string }[]
 }
 
 export interface ExpenseRequestPage {

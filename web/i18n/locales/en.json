@@ -64,7 +64,23 @@
     "emptyHint": "Submit the first request: the moderator will see it in their queue.",
     "queueEmpty": "The queue is empty",
     "queueEmptyHint": "Requests that wait for your action will appear here.",
-    "noneInStatus": "No requests in status \"{status}\""
+    "noneInStatus": "No requests in status \"{status}\"",
+    "layout": {
+      "label": "Layout",
+      "list": "List",
+      "board": "Board"
+    },
+    "sort": {
+      "label": "Order",
+      "priority": "By priority",
+      "deadline": "By deadline",
+      "created": "Newest first",
+      "turned": {
+        "priority": "Least important first",
+        "deadline": "Farthest deadline first",
+        "created": "Oldest first"
+      }
+    }
   },
   "request": {
     "title": "Request {id}",
@@ -140,7 +156,10 @@
     "active": "Active",
     "empty": "No values",
     "color": "Colour of \"{name}\"",
-    "noColor": "No colour"
+    "noColor": "No colour",
+    "orderHint": "The most important one is on top. Requests are sorted in this order.",
+    "moveUp": "Move \"{name}\" up",
+    "moveDown": "Move \"{name}\" down"
   },
   "color": {
     "red": "Red",
@@ -183,14 +202,16 @@
       "moderator_is_author": "You cannot choose yourself as the moderator",
       "not_a_moderator": "This person does not have the moderator role",
       "reference_list_empty": "The reference list is empty. Ask the finance director to fill it",
-      "reference_item_inactive": "This value is switched off in the reference list"
+      "reference_item_inactive": "This value is switched off in the reference list",
+      "position_out_of_range": "The list has no such place"
     },
     "code": {
       "DuplicateReferenceItem": "The list already has a value with this name",
       "Forbidden": "This action is not available to you",
       "NotFound": "Request not found",
       "IdentityProviderUnavailable": "The sign-in provider is unavailable. Try again later",
-      "ServiceUnavailable": "The service is temporarily unavailable. Try again later"
+      "ServiceUnavailable": "The service is temporarily unavailable. Try again later",
+      "ReferenceListUnordered": "This reference list has no order"
     }
   },
   "holder": {
@@ -199,5 +220,18 @@
     "moderator": "with the moderator: {name}",
     "finance_director": "with the finance director",
     "payer": "waits for payment"
+  },
+  "board": {
+    "at": {
+      "author": "with the author",
+      "moderator": "with the moderator",
+      "finance_director": "with the finance director",
+      "payer": "waits for payment"
+    },
+    "empty": "No requests",
+    "more": "{count} more in the list",
+    "finished": "Finished",
+    "number": "No. {id}",
+    "until": "by {day}"
   }
 }

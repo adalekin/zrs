@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { XIcon } from '@lucide/vue'
+import { ChevronDownIcon, ChevronUpIcon, PencilIcon, XIcon } from '@lucide/vue'
 
 const api = useApi()
 const me = useMe()
@@ -45,6 +45,11 @@ function setActive(item: ReferenceItem, isActive: boolean) {
   return change(() => api(`/reference-items/${item.id}`, { method: 'PATCH', body: { is_active: isActive } }))
 }
 
+/** Puts a priority on another place of its list; the server shifts the ones in between. */
+function move(item: ReferenceItem, position: number) {
+  return change(() => api(`/reference-items/${item.id}/position`, { method: 'POST', body: { position } }))
+}
+
 // The value whose palette is open.
 const coloring = ref<number>()
 
@@ -79,9 +84,15 @@ function setColor(item: ReferenceItem, color: ReferenceColor | null) {
     <!-- Three short lists side by side: each is seen whole, without scrolling past the others. -->
     <div v-else class="grid items-start gap-4 lg:grid-cols-3">
       <section v-for="kind in REFERENCE_KINDS" :key="kind" class="grid content-start gap-3 rounded-xl border p-4">
-        <h2 class="font-semibold">
-          {{ $t(`reference.${kind}`) }}
-        </h2>
+        <div>
+          <h2 class="font-semibold">
+            {{ $t(`reference.${kind}`) }}
+          </h2>
+          <!-- Only priorities have an order: requests are sorted by it. -->
+          <p v-if="kind === 'priority'" class="text-muted-foreground text-xs">
+            {{ $t('reference.orderHint') }}
+          </p>
+        </div>
         <p v-if="!items.some(item => item.kind === kind)" class="text-muted-foreground text-sm">
           {{ $t('reference.empty') }}
         </p>
@@ -89,7 +100,7 @@ function setColor(item: ReferenceItem, color: ReferenceColor | null) {
           <li
             v-for="item in items.filter(item => item.kind === kind)"
             :key="item.id"
-            class="flex flex-wrap items-center gap-x-3 gap-y-2"
+            class="flex flex-wrap items-center gap-x-3 gap-y-2 max-sm:gap-x-1.5"
           >
             <button
               type="button"
@@ -114,9 +125,32 @@ function setColor(item: ReferenceItem, color: ReferenceColor | null) {
               </Button>
             </form>
             <template v-else>
-              <span class="flex-1" :class="{ 'text-muted-foreground line-through': !item.is_active }">{{ item.name }}</span>
+              <span class="min-w-0 flex-1 break-words" :class="{ 'text-muted-foreground line-through': !item.is_active }">{{ item.name }}</span>
+              <!-- A value of a list without an order has no place and no arrows. -->
+              <div v-if="item.position !== null" class="flex">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  :disabled="item.position === 1"
+                  :aria-label="$t('reference.moveUp', { name: item.name })"
+                  @click="move(item, item.position - 1)"
+                >
+                  <ChevronUpIcon />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  :disabled="item.position === items.filter(other => other.kind === kind).length"
+                  :aria-label="$t('reference.moveDown', { name: item.name })"
+                  @click="move(item, item.position + 1)"
+                >
+                  <ChevronDownIcon />
+                </Button>
+              </div>
+              <!-- A narrow screen has no room for the word next to the name: it keeps the icon, the word stays for screen readers. -->
               <Button variant="ghost" size="sm" @click="renaming = { id: item.id, name: item.name }">
-                {{ $t('reference.rename') }}
+                <PencilIcon class="sm:hidden" />
+                <span class="max-sm:sr-only">{{ $t('reference.rename') }}</span>
               </Button>
             </template>
             <Switch

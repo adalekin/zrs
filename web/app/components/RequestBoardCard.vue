@@ -1,0 +1,40 @@
+<script setup lang="ts">
+// A request on the board. Each reference list has its own corner: the operation type top left,
+// the priority top right, the payment form next to the amount, so the cards of a column read alike.
+const props = defineProps<{
+  request: ExpenseRequest
+  /** The request waits for the person looking. */
+  mine: boolean
+}>()
+
+const format = useFormat()
+const overdue = computed(() => isOverdue(props.request, calendarDay()))
+</script>
+
+<template>
+  <NuxtLink
+    :to="`/requests/${request.id}`"
+    class="grid grid-cols-1 gap-2 rounded-lg border p-3 transition-colors"
+    :class="mine ? 'border-primary/40 bg-primary/5' : 'bg-background hover:border-foreground/25'"
+  >
+    <div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
+      <ReferenceValue :item="request.operation_type" />
+      <ReferenceValue :item="request.priority" />
+    </div>
+    <p class="line-clamp-2 leading-snug font-medium">
+      {{ gist(request) }}
+    </p>
+    <div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
+      <span class="text-foreground text-base font-semibold tabular-nums">{{ format.amount(request.amount, request.currency) }}</span>
+      <ReferenceValue v-if="request.payment_form" :item="request.payment_form" />
+    </div>
+    <div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
+      <span class="truncate">
+        <template v-if="mine"><span class="text-primary font-medium">{{ $t('holder.you') }}</span> · </template>{{ request.author.name }} · {{ $t('board.number', { id: request.id }) }}
+      </span>
+      <span v-if="request.deadline" class="shrink-0" :class="{ 'text-destructive font-medium': overdue }">
+        {{ $t('board.until', { day: format.day(request.deadline) }) }}
+      </span>
+    </div>
+  </NuxtLink>
+</template>

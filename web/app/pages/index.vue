@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { ArrowUpDownIcon, Columns3Icon, ListIcon } from '@lucide/vue'
+
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
@@ -19,7 +21,18 @@ const waiting = computed(() => queue.value?.total)
 // a queue longer than one page of the API marks its first hundred.
 const waitingIds = computed(() => new Set(queue.value?.items.map(request => request.id)))
 
-// The tab, the status filter and the page number live in the address of the page.
+// The tab, the layout, the order, the status filter and the page number live in the address of the page.
+// A narrow screen has one layout: a column of the board there would be the list filtered by a status.
+const narrow = useNarrow()
+const layout = computed<'list' | 'board'>(() => route.query.layout === 'board' && !narrow.value ? 'board' : 'list')
+const sort = computed<RequestSort>(() => {
+  const asked = REQUEST_SORTS.find(value => value === route.query.sort)
+  if (layout.value === 'board') {
+    // An order the board does not offer is not replaced by a similar one: the board goes by its own.
+    return asked && BOARD_SORTS.includes(asked) ? asked : BOARD_SORT
+  }
+  return asked ?? LIST_SORT
+})
 const status = computed(() => STATUSES.find(value => value === route.query.status))
 const page = computed(() => {
   const value = Number(route.query.page)
@@ -39,39 +52,80 @@ const view = computed<'queue' | 'all' | undefined>(() => {
   return waiting.value > 0 ? 'queue' : 'all'
 })
 
-const { data, error, reload } = useLoad(async () => view.value
+// The list loads only while it is the layout on the screen: the board loads its own data.
+const { data, error, reload } = useLoad(async () => view.value && layout.value === 'list'
   ? await api<ExpenseRequestPage>('/requests', {
       query: {
         awaiting_me: view.value === 'queue' ? true : undefined,
         status: view.value === 'all' ? status.value : undefined,
+        sort: sort.value,
         page: page.value,
       },
     })
   : undefined)
-watch([view, status, page], reload)
+watch([view, layout, status, sort, page], reload)
 watch(error, value => value && showFailure(value))
 
 const pages = computed(() => data.value ? Math.max(1, Math.ceil(data.value.total / data.value.size)) : 1)
 
-function show(query: { awaiting_me?: string, view?: string, status?: string, page?: string }) {
-  router.replace({ query })
+/**
+ * Changes the address. The tab, the layout and the order stay unless the change names them;
+ * the status filter and the page number go, so that any change starts from the first page.
+ */
+function show(change: { awaiting_me?: string, view?: string, layout?: string, sort?: string, status?: string, page?: string }) {
+  const { awaiting_me, view, layout, sort } = route.query
+  router.replace({ query: { awaiting_me, view, layout, sort, ...change } })
+}
+
+function setStatus(value: Status | undefined) {
+  show({ awaiting_me: undefined, view: 'all', status: value })
 }
 
 const statusChoice = computed({
   get: () => status.value ?? '',
-  // A changed filter starts from the first page.
-  set: value => show({ view: 'all', status: value || undefined }),
+  set: value => setStatus(value || undefined),
 })
 
 function turnTo(target: number) {
-  show({ ...route.query, page: target > 1 ? String(target) : undefined })
+  show({ status: status.value, page: target > 1 ? String(target) : undefined })
 }
 
+/** The order goes to the address; the order a layout has by itself is not written there. */
+function setSort(value: RequestSort) {
+  const own = layout.value === 'board' ? BOARD_SORT : LIST_SORT
+  show({ sort: value === own ? undefined : value, status: status.value })
+}
+
+const sortChoice = computed({
+  get: () => sort.value,
+  set: value => setSort(value),
+})
+
+// The two layouts have different orders by themselves and offer different ones, so each opens with its own.
+function setLayout(value: 'list' | 'board') {
+  show({ layout: value === 'board' ? 'board' : undefined, sort: undefined })
+}
+
+// An address may carry an order the board does not offer. The board ignores it, and the address says so.
+watch([layout, () => route.query.sort], () => {
+  if (layout.value === 'board' && route.query.sort !== undefined && route.query.sort !== sort.value) {
+    show({ sort: undefined })
+  }
+}, { immediate: true })
+
 const creating = ref(false)
+const board = useTemplateRef('board')
+const strip = useTemplateRef('strip')
 
 function created() {
   recount()
-  reload()
+  strip.value?.reload()
+  if (layout.value === 'board') {
+    board.value?.reload()
+  }
+  else {
+    reload()
+  }
 }
 
 /** Who has the request now: the person looking, when the request is in their queue. */
@@ -81,36 +135,28 @@ function who(request: ExpenseRequest) {
     : holder(request)
 }
 
-// The calendar day of the browser, in the form the API writes dates.
-const today = new Date().toLocaleDateString('sv')
-
-/** A deadline that has passed while the request is still on its way. */
-function overdue(request: ExpenseRequest) {
-  return request.deadline !== null && holderOf(request.status) !== undefined && request.deadline < today
-}
-
-/** The first line of the situation: what the request is about. */
-const gist = (request: ExpenseRequest) => request.situation.split('\n', 1)[0]
-
-/** The reference values of a request in the order a card shows them; a request may have no payment form. */
-const marks = (request: ExpenseRequest) =>
-  [request.operation_type, request.priority, request.payment_form].filter(item => item !== null)
+const today = calendarDay()
 </script>
 
 <template>
-  <div class="grid gap-4">
+  <div class="grid gap-4 max-sm:gap-3">
+    <!-- One row on a wide screen. A narrow one gets two that stand on the edges of the cards: the title with the order and the new request, then the tabs. -->
     <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
-      <h1 class="text-xl font-semibold">
+      <h1 class="text-xl font-semibold max-sm:flex-1">
         {{ $t('requests.title') }}
       </h1>
-      <div class="flex gap-1" role="tablist">
+      <!-- A narrow screen shows the two tabs as one switch of its whole width. -->
+      <div
+        class="flex gap-1 max-sm:order-2 max-sm:grid max-sm:w-full max-sm:grid-cols-2 max-sm:gap-0 max-sm:rounded-lg max-sm:border max-sm:p-0.5"
+        role="tablist"
+      >
         <button
           type="button"
           role="tab"
-          class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm transition-colors"
+          class="flex h-8 items-center gap-1.5 rounded-lg px-3 text-sm transition-colors max-sm:h-7 max-sm:justify-center max-sm:rounded-md"
           :class="view === 'queue' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'"
           :aria-selected="view === 'queue'"
-          @click="show({ awaiting_me: 'true' })"
+          @click="show({ awaiting_me: 'true', view: undefined })"
         >
           {{ $t('requests.awaitingMe') }}
           <span
@@ -122,30 +168,82 @@ const marks = (request: ExpenseRequest) =>
         <button
           type="button"
           role="tab"
-          class="flex h-8 items-center rounded-lg px-3 text-sm transition-colors"
+          class="flex h-8 items-center rounded-lg px-3 text-sm transition-colors max-sm:h-7 max-sm:justify-center max-sm:rounded-md"
           :class="view === 'all' ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted'"
           :aria-selected="view === 'all'"
-          @click="show({ view: 'all' })"
+          @click="show({ awaiting_me: undefined, view: 'all' })"
         >
           {{ $t('requests.all') }}
         </button>
       </div>
-      <!-- The queue is defined by its statuses, so the filter belongs to the other tab. -->
-      <NativeSelect v-if="view === 'all'" v-model="statusChoice" :aria-label="$t('field.status')">
-        <NativeSelectOption value="">
-          {{ $t('requests.allStatuses') }}
-        </NativeSelectOption>
-        <NativeSelectOption v-for="value in STATUSES" :key="value" :value="value">
-          {{ $t(`status.${value}`) }}
-        </NativeSelectOption>
-      </NativeSelect>
-      <Button v-if="me?.roles.includes('requester')" class="ml-auto" @click="creating = true">
-        {{ $t('requests.create') }}
-      </Button>
+      <div class="flex items-center gap-2 max-sm:hidden">
+        <!-- The queue is defined by its statuses, and on the board the statuses are the columns: the filter belongs to the list of everything. -->
+        <NativeSelect v-if="layout === 'list' && view === 'all'" v-model="statusChoice" :aria-label="$t('field.status')">
+          <NativeSelectOption value="">
+            {{ $t('requests.allStatuses') }}
+          </NativeSelectOption>
+          <NativeSelectOption v-for="value in STATUSES" :key="value" :value="value">
+            {{ $t(`status.${value}`) }}
+          </NativeSelectOption>
+        </NativeSelect>
+        <!-- One order for all the columns of the board. The list is sorted by the headings of its table. -->
+        <template v-if="layout === 'board'">
+          <span class="text-muted-foreground text-sm" aria-hidden="true">
+            {{ $t('requests.sort.label') }}
+          </span>
+          <NativeSelect v-model="sortChoice" :aria-label="$t('requests.sort.label')">
+            <NativeSelectOption v-for="value in BOARD_SORTS" :key="value" :value="value">
+              {{ $t(sortLabel(value)) }}
+            </NativeSelectOption>
+          </NativeSelect>
+        </template>
+      </div>
+      <div class="ml-auto flex items-center gap-2 sm:gap-3">
+        <!-- The cards of a narrow screen have no headings to sort by: an icon opens every order by its name.
+             It is tinted while the order is not the one the list opens with. -->
+        <label
+          class="has-[:focus-visible]:ring-ring/50 relative flex size-8 items-center justify-center rounded-lg border has-[:focus-visible]:ring-3 sm:hidden"
+          :class="{ 'bg-primary/10 border-primary/30 text-primary': sort !== LIST_SORT }"
+        >
+          <ArrowUpDownIcon class="size-4" />
+          <select v-model="sortChoice" class="absolute inset-0 opacity-0" :aria-label="$t('requests.sort.label')">
+            <option v-for="value in LIST_SORTS" :key="value" :value="value">
+              {{ $t(sortLabel(value)) }}
+            </option>
+          </select>
+        </label>
+        <div class="flex rounded-lg border p-0.5 max-sm:hidden" role="group" :aria-label="$t('requests.layout.label')">
+          <button
+            v-for="option in (['list', 'board'] as const)"
+            :key="option"
+            type="button"
+            class="flex h-7 items-center gap-1.5 rounded-md px-2.5 text-sm transition-colors"
+            :class="layout === option ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'"
+            :aria-pressed="layout === option"
+            @click="setLayout(option)"
+          >
+            <ListIcon v-if="option === 'list'" class="size-4" />
+            <Columns3Icon v-else class="size-4" />
+            {{ $t(`requests.layout.${option}`) }}
+          </button>
+        </div>
+        <Button v-if="me?.roles.includes('requester')" @click="creating = true">
+          {{ $t('requests.create') }}
+        </Button>
+      </div>
     </div>
+    <!-- The statuses with their numbers stand in for the status filter and for the columns of the board. -->
+    <RequestStatusStrip v-if="narrow && view === 'all'" ref="strip" :model-value="status" @update:model-value="setStatus" />
     <RequestDialog v-model:open="creating" @created="created" />
 
-    <p v-if="!data" class="text-muted-foreground text-sm">
+    <template v-if="layout === 'board'">
+      <RequestBoard v-if="view" ref="board" :awaiting-me="view === 'queue'" :waiting-ids="waitingIds" :sort="sort" />
+      <p v-else class="text-muted-foreground text-sm">
+        {{ $t('common.loading') }}
+      </p>
+    </template>
+
+    <p v-else-if="!data" class="text-muted-foreground text-sm">
       {{ error ? $t('common.failed') : $t('common.loading') }}
     </p>
 
@@ -215,15 +313,27 @@ const marks = (request: ExpenseRequest) =>
             </TableHead>
             <TableHead>{{ $t('field.request') }}</TableHead>
             <TableHead>{{ $t('field.operationType') }}</TableHead>
-            <TableHead>{{ $t('field.priority') }}</TableHead>
+            <TableHead>
+              <SortHeader :state="sortState(sort, 'priority')" @sort="setSort(nextSort(sort, 'priority'))">
+                {{ $t('field.priority') }}
+              </SortHeader>
+            </TableHead>
             <TableHead class="text-right">
               {{ $t('field.amount') }}
             </TableHead>
             <!-- Right after the amount: how much and how to pay read together. -->
             <TableHead>{{ $t('field.paymentForm') }}</TableHead>
             <TableHead>{{ $t('field.status') }}</TableHead>
-            <TableHead>{{ $t('field.deadline') }}</TableHead>
-            <TableHead>{{ $t('field.submittedAt') }}</TableHead>
+            <TableHead>
+              <SortHeader :state="sortState(sort, 'deadline')" @sort="setSort(nextSort(sort, 'deadline'))">
+                {{ $t('field.deadline') }}
+              </SortHeader>
+            </TableHead>
+            <TableHead>
+              <SortHeader :state="sortState(sort, 'created')" @sort="setSort(nextSort(sort, 'created'))">
+                {{ $t('field.submittedAt') }}
+              </SortHeader>
+            </TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -267,7 +377,7 @@ const marks = (request: ExpenseRequest) =>
                 {{ who(request)!.text }}
               </p>
             </TableCell>
-            <TableCell class="whitespace-nowrap" :class="overdue(request) ? 'text-destructive font-medium' : 'text-muted-foreground'">
+            <TableCell class="whitespace-nowrap" :class="isOverdue(request, today) ? 'text-destructive font-medium' : 'text-muted-foreground'">
               {{ request.deadline ? format.day(request.deadline) : '' }}
             </TableCell>
             <TableCell class="text-muted-foreground whitespace-nowrap">

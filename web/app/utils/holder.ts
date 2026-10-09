@@ -14,3 +14,14 @@ const HOLDERS: Partial<Record<Status, Holder>> = {
 export function holderOf(status: Status): Holder | undefined {
   return HOLDERS[status]
 }
+
+/** The parties in the order a request passes them. */
+export const WAY: readonly Holder[] = ['author', 'moderator', 'finance_director', 'payer']
+
+/** The statuses of a request on its way, in the order of the parties that hold it: the columns of the board. */
+export const STATUSES_ON_THE_WAY: Status[] = (Object.entries(HOLDERS) as [Status, Holder][])
+  .sort(([, one], [, other]) => WAY.indexOf(one) - WAY.indexOf(other))
+  .map(([status]) => status)
+
+/** The statuses a request does not leave. */
+export const FINAL_STATUSES: Status[] = STATUSES.filter(status => HOLDERS[status] === undefined)

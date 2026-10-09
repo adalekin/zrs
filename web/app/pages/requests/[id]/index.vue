@@ -31,7 +31,7 @@ const steps = computed(() => {
   }
   // The finance director is on the way only of a request the moderator passed on.
   const viaDirector = status === 'escalated' || journal.value.some(entry => entry.status === 'escalated')
-  const way: Holder[] = ['author', 'moderator', ...(viaDirector ? ['finance_director' as const] : []), 'payer']
+  const way = WAY.filter(party => party !== 'finance_director' || viaDirector)
   const at = holder.value ? way.indexOf(holder.value) : way.length
   return way.map((party, index) => ({ party, state: index < at ? 'done' : index === at ? 'current' : 'ahead' }))
 })

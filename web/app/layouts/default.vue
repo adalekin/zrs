@@ -29,12 +29,13 @@ onMounted(async () => {
 
   <div v-else-if="me" class="min-h-screen">
     <header class="border-b">
-      <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+      <!-- The narrowest phones get smaller gaps: with two sections in the navigation the bar would not fit one line. -->
+      <div class="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 max-[359px]:gap-x-3">
         <NuxtLink to="/" class="flex items-center gap-2 text-lg font-semibold">
           <AppLogo />
           ZRS
         </NuxtLink>
-        <nav class="flex gap-4 text-sm">
+        <nav class="flex gap-4 text-sm max-[359px]:gap-3">
           <NuxtLink to="/" class="hover:underline">
             {{ $t('nav.requests') }}
           </NuxtLink>
@@ -42,18 +43,20 @@ onMounted(async () => {
             {{ $t('nav.reference') }}
           </NuxtLink>
         </nav>
-        <div class="ml-auto flex items-center gap-3 text-sm">
-          <div class="text-right">
+        <!-- The icon of a narrow screen stands on the right edge of the page content, not its button. -->
+        <div class="ml-auto flex items-center gap-3 text-sm max-sm:-mr-2">
+          <!-- The name and the roles do not fit the one line of a narrow screen. -->
+          <div class="text-right max-sm:hidden">
             <div>{{ me.name }}</div>
             <div class="text-muted-foreground text-xs">
               {{ me.roles.map(role => $t(`role.${role}`)).join(', ') }}
             </div>
           </div>
-          <SignOutButton variant="ghost" />
+          <SignOutButton variant="ghost" compact />
         </div>
       </div>
     </header>
-    <main class="mx-auto max-w-7xl px-4 py-6">
+    <main class="mx-auto max-w-7xl px-4 py-6 max-sm:py-5">
       <slot />
     </main>
   </div>
