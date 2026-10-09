@@ -71,6 +71,8 @@ imagePullSecrets:
   value: {{ required "settings.telegram.botUsername is required with settings.notifications: telegram" $settings.telegram.botUsername | quote }}
 - name: TELEGRAM_EGRESS
   value: {{ required "settings.telegram.egress is required with settings.notifications: telegram: direct or proxy" $settings.telegram.egress | quote }}
+- name: TELEGRAM_DECISIONS
+  value: {{ required "settings.telegram.decisions is required with settings.notifications: telegram: on or off" $settings.telegram.decisions | quote }}
 - name: TELEGRAM_BOT_TOKEN
   valueFrom:
     secretKeyRef:

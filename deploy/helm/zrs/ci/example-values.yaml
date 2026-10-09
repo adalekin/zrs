@@ -21,6 +21,7 @@ settings:
   telegram:
     botUsername: zrs_example_bot
     egress: proxy
+    decisions: "on"
   uiLocale: en
   publicUrl: https://zrs.example.com
   storage:

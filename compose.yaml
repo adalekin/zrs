@@ -21,12 +21,14 @@ x-server-environment: &server-environment
   TIMEZONE: Europe/Moscow
   PAYMENT_DAY_ENDS_AT: "16:30"
   # Notifications are off in development. To try them, make a bot of your own and start the stack with
-  # NOTIFICATIONS=telegram, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME and TELEGRAM_EGRESS in the environment.
+  # NOTIFICATIONS=telegram, TELEGRAM_BOT_TOKEN, TELEGRAM_BOT_USERNAME, TELEGRAM_EGRESS and TELEGRAM_DECISIONS
+  # in the environment.
   NOTIFICATIONS: ${NOTIFICATIONS:-off}
   TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
   TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
   TELEGRAM_EGRESS: ${TELEGRAM_EGRESS:-}
   TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
+  TELEGRAM_DECISIONS: ${TELEGRAM_DECISIONS:-}
   AUTH_ORIGIN: http://localhost:3300
   UI_LOCALE: ru
   S3_ENDPOINT_URL: http://storage:8333

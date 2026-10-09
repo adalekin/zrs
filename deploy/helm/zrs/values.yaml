@@ -37,6 +37,8 @@ settings:
     # How the server reaches api.telegram.org: direct or proxy.
     # With proxy the address is the TELEGRAM_PROXY_URL key of the Secret: it may carry a password.
     egress: ""
+    # Whether a request may be decided on from the chat with the bot, without signing in: "on" or "off", in quotes
+    decisions: ""
   # Interface language: ru or en
   uiLocale: ""
   # Public URL of the web app, e.g. https://zrs.example.com
