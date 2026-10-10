@@ -70,7 +70,10 @@ onMounted(async () => {
               </NuxtLink>
             </Button>
             <SignOutButton variant="ghost" class="max-sm:hidden" />
-            <AccountMenu :me="me" class="sm:hidden" />
+            <!-- The menu renders no element of its own to carry a class, so a wrapper hides it on a wide screen. -->
+            <div class="sm:hidden">
+              <AccountMenu :me="me" />
+            </div>
           </template>
           <SignOutButton v-else variant="ghost" compact />
         </div>
