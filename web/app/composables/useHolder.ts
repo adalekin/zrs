@@ -8,8 +8,9 @@ export function useHolder() {
     if (request.status === 'rejected' && request.rejected_as) {
       return { text: t(`holder.rejected.${request.rejected_as}`, { name: request.rejected_by?.name }), mine: false }
     }
+    // The badge above says "paid" already: under it stands the day alone.
     if (request.status === 'paid' && request.paid_on) {
-      return { text: t('holder.paid', { day: format.day(request.paid_on) }), mine: false }
+      return { text: format.day(request.paid_on), mine: false }
     }
     // A recurring request paid for this period waits for nobody till the next one starts.
     if (request.next_payment_from) {

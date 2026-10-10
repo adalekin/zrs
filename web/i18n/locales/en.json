@@ -240,7 +240,6 @@
     "finance_director": "with the finance director",
     "payer": "waits for payment",
     "payerNamed": "waits for payment by {name}",
-    "paid": "paid on {day}",
     "rejected": {
       "author": "cancelled by the author",
       "moderator": "rejected by the moderator: {name}",
