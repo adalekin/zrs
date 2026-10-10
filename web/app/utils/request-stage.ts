@@ -12,7 +12,7 @@ interface Paint {
   row: string
   /** The fill of a column of the board. */
   column: string
-  /** The fill and the text of the status badge: a stop deeper than the row it stands in. */
+  /** The fill and the text of the status badge: deeper than the row it stands in. */
   badge: string
   /** The dot of a journal entry that brought the request to this stage. */
   dot: string
@@ -20,53 +20,54 @@ interface Paint {
 
 export class RequestStage {
   static readonly RETURNED = new RequestStage('returned', false, {
-    row: 'bg-orange-100/60 hover:bg-orange-100',
-    column: 'bg-orange-100/60',
-    badge: 'bg-orange-200 text-orange-900',
+    row: 'bg-orange-50 hover:bg-orange-100/70',
+    column: 'bg-orange-50',
+    badge: 'bg-orange-200/70 text-orange-900',
     dot: 'bg-orange-500',
   })
 
-  /** A new request has no colour: it is where every request starts. */
+  /** A new request has no colour: it is where every request starts. Its column and its badge are outlined instead. */
   static readonly NEW = new RequestStage('new', false, {
     row: 'hover:bg-muted/50',
-    column: 'bg-muted/60',
-    badge: 'bg-background text-foreground ring-border ring-1 ring-inset',
+    column: 'bg-background border',
+    badge: 'bg-background text-foreground border',
     dot: 'bg-slate-400',
   })
 
   static readonly ESCALATED = new RequestStage('escalated', false, {
-    row: 'bg-yellow-100/60 hover:bg-yellow-100',
-    column: 'bg-yellow-100/60',
-    badge: 'bg-yellow-200 text-yellow-900',
+    row: 'bg-yellow-100/70 hover:bg-yellow-100',
+    column: 'bg-yellow-100/70',
+    badge: 'bg-yellow-300/60 text-yellow-950',
     dot: 'bg-yellow-500',
   })
 
   static readonly APPROVED = new RequestStage('approved', false, {
-    row: 'bg-green-100/60 hover:bg-green-100',
-    column: 'bg-green-100/60',
-    badge: 'bg-green-200 text-green-900',
-    dot: 'bg-green-500',
+    row: 'bg-emerald-100/70 hover:bg-emerald-100',
+    column: 'bg-emerald-100/70',
+    badge: 'bg-emerald-300/50 text-emerald-950',
+    dot: 'bg-emerald-500',
   })
 
+  /** A paid request is done: its row is the palest, and its badge is the word with a tick, without a fill. */
   static readonly PAID = new RequestStage('paid', true, {
-    row: 'bg-green-50/70 hover:bg-green-50',
-    column: 'bg-green-50/70',
-    badge: 'bg-green-100 text-green-800',
-    dot: 'bg-green-600',
+    row: 'bg-emerald-50/60 hover:bg-emerald-50',
+    column: 'bg-emerald-50/60',
+    badge: 'text-emerald-800',
+    dot: 'bg-emerald-600',
   })
 
   /** Rejected by the moderator or cancelled by the author. */
   static readonly REJECTED = new RequestStage('rejected', true, {
-    row: 'bg-muted/70 hover:bg-muted',
-    column: 'bg-muted/70',
-    badge: 'bg-foreground/10 text-muted-foreground',
+    row: 'bg-neutral-200/60 hover:bg-neutral-200',
+    column: 'bg-neutral-200/60',
+    badge: 'bg-neutral-300/70 text-neutral-700',
     dot: 'bg-slate-400',
   })
 
   static readonly REJECTED_BY_FINANCE_DIRECTOR = new RequestStage('rejected', false, {
-    row: 'bg-red-100/60 hover:bg-red-100',
-    column: 'bg-red-100/60',
-    badge: 'bg-red-200 text-red-900',
+    row: 'bg-red-100/70 hover:bg-red-100',
+    column: 'bg-red-100/70',
+    badge: 'bg-red-300/50 text-red-950',
     dot: 'bg-red-500',
   })
 

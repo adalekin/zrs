@@ -10,8 +10,8 @@ defineProps<{ stage: RequestStage }>()
     class="inline-flex h-5 items-center gap-1 rounded-full px-2 text-xs font-medium whitespace-nowrap"
     :class="stage.paint.badge"
   >
-    <CheckIcon v-if="stage.status === 'paid'" class="size-3" />
-    <XIcon v-else-if="stage.status === 'rejected'" class="size-3" />
+    <CheckIcon v-if="stage.status === 'paid'" class="size-3" :stroke-width="2.5" />
+    <XIcon v-else-if="stage.status === 'rejected'" class="size-3" :stroke-width="2.5" />
     {{ $t(`status.${stage.status}`) }}
   </span>
 </template>
