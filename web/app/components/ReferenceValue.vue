@@ -8,7 +8,7 @@ defineProps<{ item: ReferenceItem }>()
 <template>
   <span
     v-if="item.color"
-    class="ring-background/80 inline-flex h-6 max-w-full items-center rounded-md px-2 text-xs font-medium ring-1"
+    class="ring-background inline-flex h-6 max-w-full items-center rounded-md px-2 text-xs font-medium ring-1"
     :class="REFERENCE_FILLS[item.color]"
   >
     <span class="truncate">{{ item.name }}</span>

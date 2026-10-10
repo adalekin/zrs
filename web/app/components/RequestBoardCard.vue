@@ -17,14 +17,14 @@ const payer = computed(() => holderOf(props.request.status) === 'payer' ? props.
 <template>
   <NuxtLink
     :to="`/requests/${request.id}`"
-    class="grid grid-cols-1 gap-2 rounded-lg border p-3 transition-colors"
-    :class="mine ? 'border-primary/40 bg-[color-mix(in_oklab,var(--primary)_6%,var(--background))]' : 'bg-background hover:border-foreground/25'"
+    class="grid grid-cols-1 gap-2 rounded-lg border p-3 text-sm transition-colors"
+    :class="mine ? 'bg-blue-50' : 'bg-background hover:border-foreground/25'"
   >
     <div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">
       <ReferenceValue :item="request.operation_type" />
       <ReferenceValue :item="request.priority" />
     </div>
-    <p class="line-clamp-2 leading-snug font-medium">
+    <p class="line-clamp-2 font-medium">
       {{ gist(request) }}
     </p>
     <div class="text-muted-foreground flex items-center justify-between gap-3 text-xs">

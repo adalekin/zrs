@@ -347,7 +347,7 @@ const today = calendarDay()
       <Table class="max-xl:hidden">
         <TableHeader>
           <TableRow>
-            <TableHead class="w-14">
+            <TableHead class="w-14 pl-3">
               {{ $t('field.id') }}
             </TableHead>
             <TableHead>{{ $t('field.request') }}</TableHead>
@@ -375,7 +375,8 @@ const today = calendarDay()
             </TableHead>
           </TableRow>
         </TableHeader>
-        <TableBody>
+        <!-- Every row is painted, the last one too: the line under it closes the table. -->
+        <TableBody class="[&_tr:last-child]:border-b">
           <TableRow
             v-for="request in data.items"
             :key="request.id"
@@ -383,7 +384,7 @@ const today = calendarDay()
             :class="[RequestStage.of(request).paint.row, { 'text-muted-foreground': RequestStage.of(request).quiet }]"
             @click="navigateTo(`/requests/${request.id}`)"
           >
-            <TableCell class="text-muted-foreground tabular-nums">
+            <TableCell class="text-muted-foreground pl-3 tabular-nums">
               {{ request.id }}
             </TableCell>
             <!-- The name takes the room the other columns leave, and never less than it needs to be read:
@@ -425,7 +426,7 @@ const today = calendarDay()
             <TableCell class="whitespace-nowrap" :class="isOverdue(request, today) ? 'text-destructive font-medium' : 'text-muted-foreground'">
               {{ request.deadline ? format.day(request.deadline) : '' }}
             </TableCell>
-            <TableCell class="text-muted-foreground whitespace-nowrap">
+            <TableCell class="text-muted-foreground pr-3 whitespace-nowrap">
               {{ format.day(request.created_at) }}
             </TableCell>
           </TableRow>
