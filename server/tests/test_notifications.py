@@ -345,6 +345,7 @@ async def test_the_author_is_told_of_every_payment_of_a_recurring_request_and_no
 
     await cast.act(cast.payer, request, "pay", paid_on="2026-10-09", amount="100")
     first = await cast.told()
+    cast.clock.today = day(2026, 10, 10)
     await cast.act(cast.payer, request, "pay", paid_on="2026-10-10", amount="200")
     second = await cast.told()
     await cast.act(cast.director, request, "finish")

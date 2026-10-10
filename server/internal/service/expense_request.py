@@ -199,6 +199,7 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             payment: Payment | None = None
             if action is Action.PAY:
                 paid_on: datetime.date = parameters["paid_on"]
+                self._validate_payment_day(request, paid_on, today)
                 payment = Payment(
                     request_id=request.id, person_id=actor.id, paid_on=paid_on, amount=parameters["amount"]
                 )
@@ -321,6 +322,18 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             if field not in values and not (creating and required):
                 continue
             await self._validate_reference(field, kind, values.get(field), required=required)
+
+    @staticmethod
+    def _validate_payment_day(request: ExpenseRequest, paid_on: datetime.date, today: datetime.date) -> None:
+        """A payment is marked once it is made, for a request that was submitted before it."""
+        if paid_on > today:
+            raise FieldInvalid("paid_on", "payment_after_today", "The payment date is later than today")
+        if paid_on < request.created_at.astimezone(settings.TIMEZONE).date():
+            raise FieldInvalid(
+                "paid_on",
+                "payment_before_request",
+                "The payment date is earlier than the day the request was submitted",
+            )
 
     async def _validate_moderator(self, actor: Actor, moderator_id: int) -> None:
         if moderator_id == actor.id:

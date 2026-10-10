@@ -1,11 +1,12 @@
 """The life cycle checked against the specification, independently of the table in the code."""
 
+import datetime
 from dataclasses import dataclass
 from typing import Any
 
 import pytest
 
-from tests.conftest import Session, World
+from tests.conftest import SUBMITTED_ON, TODAY, Session, World
 
 STATUSES = ["new", "returned", "escalated", "approved", "paid", "rejected"]
 ACTIONS = ["approve", "escalate", "return", "reject", "resubmit", "cancel", "pay", "reassign", "finish"]
@@ -213,6 +214,49 @@ async def test_paying_without_a_date_names_the_field(cast: Cast) -> None:
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["loc"][-1] == "paid_on"
+    assert await cast.status() == "approved"
+
+
+@pytest.mark.parametrize("paid_on", [SUBMITTED_ON, TODAY])
+async def test_a_payment_is_dated_from_the_day_the_request_was_submitted_to_today(
+    cast: Cast, paid_on: datetime.date
+) -> None:
+    await drive(cast, "approved")
+
+    response = await cast.payer.post(
+        f"/v1/requests/{cast.request_id}/pay", json={"paid_on": paid_on.isoformat(), "amount": "1590.00"}
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["paid_on"] == paid_on.isoformat()
+
+
+# A year typed with two digits is a date before the request, too.
+@pytest.mark.parametrize("paid_on", ["0026-10-08", (SUBMITTED_ON - datetime.timedelta(days=1)).isoformat()])
+async def test_a_payment_dated_before_the_request_was_submitted_is_refused(cast: Cast, paid_on: str) -> None:
+    await drive(cast, "approved")
+
+    response = await cast.payer.post(
+        f"/v1/requests/{cast.request_id}/pay", json={"paid_on": paid_on, "amount": "1590.00"}
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"][0]
+    assert (detail["loc"][-1], detail["type"]) == ("paid_on", "payment_before_request")
+    assert await cast.status() == "approved"
+
+
+async def test_a_payment_dated_after_today_is_refused(cast: Cast) -> None:
+    await drive(cast, "approved")
+
+    response = await cast.payer.post(
+        f"/v1/requests/{cast.request_id}/pay",
+        json={"paid_on": (TODAY + datetime.timedelta(days=1)).isoformat(), "amount": "1590.00"},
+    )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"][0]
+    assert (detail["loc"][-1], detail["type"]) == ("paid_on", "payment_after_today")
     assert await cast.status() == "approved"
 
 

@@ -74,6 +74,11 @@ from internal.service.telegram import (
 
 TEST_DATABASE_URL = settings.database_url.render_as_string(hide_password=False)
 
+#: The tests live on a calendar of their own. Their ``Clock`` opens on this day, a Friday.
+TODAY = datetime.date(2026, 10, 9)
+#: Every request is submitted well before that, in the quarter before: the days a test pays on come after it.
+SUBMITTED_ON = datetime.date(2026, 9, 1)
+
 if not make_url(TEST_DATABASE_URL).database.endswith("_test"):
     raise RuntimeError("The test suite rebuilds its database and refuses to run on one not named *_test")
 
@@ -92,6 +97,20 @@ def _rebuild_schema() -> None:
     config.set_main_option("script_location", str(BASE_DIR / "migrations"))
     config.set_main_option("sqlalchemy.url", TEST_DATABASE_URL)
     command.upgrade(config, "head")
+
+    asyncio.run(_stamp_requests_on(SUBMITTED_ON))
+
+
+async def _stamp_requests_on(day: datetime.date) -> None:
+    """Requests are stamped as submitted on ``day``, in the order they are made, whatever day the suite runs on."""
+    midnight = datetime.datetime.combine(day, datetime.time(), settings.TIMEZONE)
+    behind = (datetime.datetime.now(datetime.UTC) - midnight).total_seconds()
+    engine = create_async_engine(TEST_DATABASE_URL)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text(f"ALTER TABLE expense_request ALTER COLUMN created_at SET DEFAULT now() - interval '{behind} seconds'")
+        )
+    await engine.dispose()
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -270,8 +289,7 @@ class Clock:
     """The calendar day of the installation, set by a test."""
 
     def __init__(self) -> None:
-        # A Friday.
-        self.today = datetime.date(2026, 10, 9)
+        self.today = TODAY
 
 
 @pytest.fixture

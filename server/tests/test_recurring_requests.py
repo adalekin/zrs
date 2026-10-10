@@ -199,6 +199,7 @@ async def test_paying_a_recurring_request_leaves_it_approved(cast: Cast) -> None
 async def test_a_recurring_request_takes_the_next_payment(cast: Cast) -> None:
     request = await cast.approved(recurrence="month")
     await cast.pay(request, day(2026, 10, 9))
+    cast.clock.today = day(2026, 11, 3)
 
     response = await cast.pay(request, day(2026, 11, 3), "1650.00")
 
@@ -208,6 +209,7 @@ async def test_a_recurring_request_takes_the_next_payment(cast: Cast) -> None:
 
 async def test_the_payments_of_a_request_read_from_the_latest(cast: Cast) -> None:
     request = await cast.approved(recurrence="month")
+    cast.clock.today = day(2026, 12, 2)
     await cast.pay(request, day(2026, 10, 9), "100")
     await cast.pay(request, day(2026, 12, 2), "300", by=cast.other_payer)
     # Marked last, paid in between.
@@ -342,6 +344,7 @@ async def test_a_recurring_request_without_a_payment_waits_for_its_payer(cast: C
 
 async def test_a_monthly_request_leaves_the_queue_till_the_next_month(cast: Cast) -> None:
     request = await cast.approved(recurrence="month")
+    cast.clock.today = day(2026, 10, 12)
     await cast.pay(request, day(2026, 10, 12))
 
     cast.clock.today = day(2026, 10, 20)
@@ -375,6 +378,7 @@ async def test_a_weekly_request_comes_back_on_monday(cast: Cast) -> None:
 
 async def test_a_quarterly_request_stays_out_of_the_queue_till_the_next_quarter(cast: Cast) -> None:
     request = await cast.approved(recurrence="quarter")
+    cast.clock.today = day(2026, 10, 12)
     await cast.pay(request, day(2026, 10, 12))
 
     cast.clock.today = day(2026, 11, 1)
@@ -387,22 +391,6 @@ async def test_a_quarterly_request_stays_out_of_the_queue_till_the_next_quarter(
     assert november == ([], "2027-01-01")
     assert december == []
     assert january == [request["id"]]
-
-
-async def test_a_payment_dated_in_a_later_period_keeps_the_request_out_till_that_period_ends(cast: Cast) -> None:
-    request = await cast.approved(recurrence="month")
-    await cast.pay(request, day(2026, 11, 2))
-
-    cast.clock.today = day(2026, 10, 20)
-    now = await cast.queue(cast.payer), (await cast.read(request))["next_payment_from"]
-    cast.clock.today = day(2026, 11, 30)
-    november = await cast.queue(cast.payer)
-    cast.clock.today = day(2026, 12, 1)
-    december = await cast.queue(cast.payer)
-
-    assert now == ([], "2026-12-01")
-    assert november == []
-    assert december == [request["id"]]
 
 
 async def test_the_list_says_when_the_next_payment_is_due(cast: Cast) -> None:
