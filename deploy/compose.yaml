@@ -4,7 +4,7 @@
 # Every variable is required; `docker compose -f deploy/compose.yaml config` names the ones that are missing.
 # README.md describes each of them.
 #
-#   ZRS_VERSION                release to run, e.g. 0.4.2
+#   ZRS_VERSION                release to run, e.g. 0.4.3
 #   ZRS_PUBLIC_URL             public URL of the web app, e.g. https://zrs.example.com
 #   ZRS_HTTP_PORT              host port the web app listens on (put your TLS proxy in front of it)
 #   UI_LOCALE                  ru or en
