@@ -35,6 +35,11 @@ export class PaymentDay {
     return deadline === now.day && now.time >= this.endsAt ? 'too_late_today' : 'in_time'
   }
 
+  /** The calendar day of a moment on the clock of the installation, as YYYY-MM-DD. */
+  dayOf(moment: Date): string {
+    return PaymentDay.clock(moment, this.timezone).day
+  }
+
   /**
    * The end of the payment day as a reader in `zone` is told it: with the zone of the
    * installation named when the clock of the reader shows another time.

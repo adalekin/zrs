@@ -54,3 +54,11 @@ describe('PaymentDay.closing', () => {
     expect(moscow.closing(moment, 'Europe/Berlin', 'en')).toMatch(/^16:30 \S+/)
   })
 })
+
+describe('PaymentDay.dayOf', () => {
+  it('names the calendar day of a moment on the clock of the installation', () => {
+    // 23:30 in London on the 9th is already the 10th in Moscow.
+    expect(moscow.dayOf(at('2026-10-09T22:30:00'))).toBe('2026-10-10')
+    expect(moscow.dayOf(at('2026-10-09T20:59:00'))).toBe('2026-10-09')
+  })
+})

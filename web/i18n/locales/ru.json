@@ -213,6 +213,8 @@
       "int_parsing": "Выберите значение из списка",
       "date_parsing": "Введите дату",
       "date_from_datetime_parsing": "Введите дату",
+      "payment_after_today": "Этот день ещё не наступил",
+      "payment_before_request": "Запрос подали позже этого дня",
       "currency_not_allowed": "Этой валюты нет в списке валют",
       "moderator_is_author": "Нельзя выбрать модератором себя",
       "not_a_moderator": "У этого человека нет роли модератора",

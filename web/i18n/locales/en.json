@@ -213,6 +213,8 @@
       "int_parsing": "Choose a value from the list",
       "date_parsing": "Enter a date",
       "date_from_datetime_parsing": "Enter a date",
+      "payment_after_today": "This day has not come yet",
+      "payment_before_request": "The request was submitted after this day",
       "currency_not_allowed": "This currency is not in the list of currencies",
       "moderator_is_author": "You cannot choose yourself as the moderator",
       "not_a_moderator": "This person does not have the moderator role",

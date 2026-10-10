@@ -8,6 +8,7 @@ const api = useApi()
 const format = useFormat()
 const showFailure = useFailureToast()
 const fieldMessages = useFieldMessages()
+const me = useMe()
 
 const id = route.params.id as string
 const { data: request, error, reload } = useLoad(() => api<ExpenseRequestDetail>(`/requests/${id}`))
@@ -98,6 +99,13 @@ const paidAmount = ref('')
 const payerId = ref('')
 const actionErrors = ref<Record<string, string>>({})
 const sending = ref(false)
+
+// A payment is dated from the day the request was submitted to today, both on the clock of the
+// installation: the server refuses any other day, and the field does not offer one.
+const paymentDays = computed(() => {
+  const clock = PaymentDay.of(me.value!.payment_day)
+  return { from: clock.dayOf(new Date(request.value!.created_at)), to: clock.dayOf(new Date()) }
+})
 
 // Approving may name the payer and reassigning does name one: these two actions ask who pays.
 const NAMES_PAYER: Action[] = ['approve', 'reassign']
@@ -549,7 +557,16 @@ function stageOf(entry: JournalEntry): RequestStage {
             required
             :error="actionErrors.paid_on"
           >
-            <Input id="paid-on" v-model="paidOn" type="date" class="w-fit" required />
+            <Input
+              id="paid-on"
+              v-model="paidOn"
+              type="date"
+              class="w-fit"
+              required
+              :min="paymentDays.from"
+              :max="paymentDays.to"
+              :aria-invalid="actionErrors.paid_on ? true : undefined"
+            />
           </FormField>
           <FormField
             v-if="pending === 'pay'"
