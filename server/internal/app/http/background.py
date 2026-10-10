@@ -13,11 +13,12 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 import approck_sqlalchemy_utils.session
 from fastapi import FastAPI
 from loguru import logger
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 
 from internal.config import settings
 from internal.service.bot import BotListener
 from internal.service.notification import NotificationService
+from internal.service.schema import Schema
 from internal.service.telegram import TelegramGateway, TelegramUnavailable
 
 #: How long the sender rests when no message waits, and after Telegram failed.
@@ -26,6 +27,8 @@ SEND_PAUSE_SECONDS = 5.0
 FAILURE_PAUSE_SECONDS = 10.0
 #: How long a replica that is not the reader waits before it asks for the turn again.
 READER_PAUSE_SECONDS = 15.0
+#: How long a task waits before it looks again whether the migrations have run: the period of the readiness probe.
+SCHEMA_PAUSE_SECONDS = 5.0
 
 
 def today() -> datetime.date:
@@ -48,7 +51,28 @@ async def read_updates(gateway: TelegramGateway) -> None:
             await asyncio.sleep(READER_PAUSE_SECONDS)
 
 
+async def migrated() -> bool:
+    """Whether the migrations of this build have run. A database that does not answer is not there yet either."""
+    try:
+        async with approck_sqlalchemy_utils.session.context_session() as session:
+            return await Schema(session).is_migrated()
+    except (DBAPIError, OSError) as exc:
+        logger.warning("The schema revision could not be read: {}", type(exc).__name__)
+        return False
+
+
+async def until_migrated() -> None:
+    """Wait for what the readiness probe waits for: the server starts next to the job that migrates."""
+    announced = False
+    while not await migrated():
+        if not announced:
+            logger.info("The background work waits for the migrations of this build")
+            announced = True
+        await asyncio.sleep(SCHEMA_PAUSE_SECONDS)
+
+
 async def forever(step: Callable[[], Awaitable[None]], *, pause: float) -> None:
+    await until_migrated()
     while True:
         try:
             await step()
