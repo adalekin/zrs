@@ -1,7 +1,10 @@
+import sys
+
 import approck_sqlalchemy_utils.session
 from approck_fastapi_utils.exception_handlers import register_exception_handlers
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
+from loguru import logger
 
 from internal.app.http.background import lifespan
 from internal.config import settings
@@ -22,6 +25,8 @@ if not isinstance(approck_sqlalchemy_utils.session.override_session, tuple):
 
 
 def create_app() -> FastAPI:
+    # A traceback in the log shows the code and not the values of its variables: they hold the secrets.
+    logger.configure(handlers=[{"sink": sys.stderr, "diagnose": False}])
     app = FastAPI(
         title="ZRS",
         description="Expense requests: submission, approval and payment tracking",
