@@ -222,10 +222,11 @@ const today = calendarDay()
         </template>
       </div>
       <div class="ml-auto flex items-center gap-2 sm:gap-3">
-        <!-- The cards of a narrow screen have no headings to sort by: an icon opens every order by its name.
+        <!-- The cards have no headings to sort by: an icon opens every order by its name.
              It is tinted while the order is not the one the list opens with. -->
         <label
-          class="has-[:focus-visible]:ring-ring/50 relative flex size-8 items-center justify-center rounded-lg border has-[:focus-visible]:ring-3 sm:hidden"
+          v-if="layout === 'list'"
+          class="has-[:focus-visible]:ring-ring/50 relative flex size-8 items-center justify-center rounded-lg border has-[:focus-visible]:ring-3 xl:hidden"
           :class="{ 'bg-primary/10 border-primary/30 text-primary': sort !== LIST_SORT }"
         >
           <ArrowUpDownIcon class="size-4" />
@@ -303,13 +304,15 @@ const today = calendarDay()
     </div>
 
     <template v-else>
-      <!-- A phone shows the same rows as cards: the table does not fit. -->
-      <ul class="grid grid-cols-1 gap-2 sm:hidden">
+      <!-- The table has nine columns and fits a screen of 1280 px. A narrower one shows the same rows
+           as cards: one column on a phone, two and three on wider screens. -->
+      <ul class="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:hidden">
         <li v-for="request in data.items" :key="request.id">
-          <!-- One column that may shrink: a long first line wraps instead of pushing the card wider than the screen. -->
+          <!-- One column that may shrink: a long first line wraps instead of pushing the card wider than the screen.
+               The cards of one row are of one height, each with its lines at the top. -->
           <NuxtLink
             :to="`/requests/${request.id}`"
-            class="grid grid-cols-1 gap-1.5 rounded-xl border p-3"
+            class="grid h-full grid-cols-1 content-start gap-1.5 rounded-xl border p-3"
             :class="[RequestStage.of(request).paint.row, { 'text-muted-foreground': RequestStage.of(request).quiet }]"
           >
             <div class="flex items-baseline justify-between gap-3">
@@ -319,6 +322,14 @@ const today = calendarDay()
             <div class="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               <ReferenceValue v-for="item in marks(request)" :key="item.id" :item="item" />
               <RecurrenceMark v-if="request.recurrence" :recurrence="request.recurrence" />
+              <!-- The deadline as the table and the board show it: marked once it has passed. -->
+              <span
+                v-if="request.deadline"
+                class="ml-auto shrink-0"
+                :class="{ 'text-destructive font-medium': isOverdue(request, today) }"
+              >
+                {{ $t('board.until', { day: format.day(request.deadline) }) }}
+              </span>
             </div>
             <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
               <StatusBadge :stage="RequestStage.of(request)" />
@@ -326,14 +337,14 @@ const today = calendarDay()
                 {{ who(request)!.text }}
               </span>
               <span class="text-muted-foreground ml-auto">
-                <template v-if="request.author.id !== me?.id">{{ request.author.name }} · </template>{{ $t('field.id') }} {{ request.id }}
+                {{ request.author.name }} · {{ $t('field.id') }} {{ request.id }}
               </span>
             </div>
           </NuxtLink>
         </li>
       </ul>
 
-      <Table class="max-sm:hidden">
+      <Table class="max-xl:hidden">
         <TableHeader>
           <TableRow>
             <TableHead class="w-14">
@@ -375,12 +386,14 @@ const today = calendarDay()
             <TableCell class="text-muted-foreground tabular-nums">
               {{ request.id }}
             </TableCell>
-            <TableCell class="max-w-0 w-full">
+            <!-- The name takes the room the other columns leave, and never less than it needs to be read:
+                 with long values around it the table scrolls sideways instead of squeezing the name out. -->
+            <TableCell class="w-full max-w-0 min-w-56">
               <NuxtLink :to="`/requests/${request.id}`" class="block truncate font-medium hover:underline" @click.stop>
                 {{ gist(request) }}
               </NuxtLink>
-              <!-- A person who sees only their own requests does not need their own name in every row. -->
-              <p v-if="request.author.id !== me?.id" class="text-muted-foreground truncate">
+              <!-- The author is named in every row, the reader's own too: the rows of a list are of one height. -->
+              <p class="text-muted-foreground truncate">
                 {{ request.author.name }}
               </p>
             </TableCell>

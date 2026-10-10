@@ -1,6 +1,6 @@
 /**
- * Whether the screen is narrower than 640 px, the width below which the list of requests
- * becomes cards (the `sm` breakpoint of the styles). Follows the width as it changes.
+ * Whether the screen is narrower than 640 px (the `sm` breakpoint of the styles): the width of a
+ * phone, where the requests have one layout and the statuses stand in a strip. Follows the width as it changes.
  * Read in the browser only: the pages render after the person is known, which happens there.
  */
 export function useNarrow() {
