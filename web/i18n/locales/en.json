@@ -151,7 +151,7 @@
       "finance_director": "Finance director",
       "payer": "Payment"
     },
-    "paidBy": "{date}. Paid by {name}",
+    "paidBy": "{date} · Paid by {name}",
     "fixHint": "Correct the request and send it again.",
     "sending": "Sending…",
     "uploading": "Uploading files: {done} of {total}",
