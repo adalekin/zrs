@@ -51,7 +51,6 @@
   "action": {
     "approveNew": "Approve",
     "approveEscalated": "Approve",
-    "escalate": "Pass to the finance director",
     "return": "Return to the author",
     "reject": "Reject",
     "resubmit": "Submit again",

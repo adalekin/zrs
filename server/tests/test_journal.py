@@ -48,7 +48,7 @@ async def test_a_decision_with_a_comment_keeps_the_comment(scene: Scene) -> None
 
 
 async def test_a_decision_without_a_comment_has_no_text(scene: Scene) -> None:
-    await scene.moderator.post(f"{scene.url}/escalate")
+    await scene.moderator.post(f"{scene.url}/approve")
 
     response = await scene.finance_director.post(f"{scene.url}/approve")
 
@@ -59,6 +59,7 @@ async def test_a_decision_without_a_comment_has_no_text(scene: Scene) -> None:
 
 async def test_a_payer_comments_without_changing_the_status(scene: Scene) -> None:
     await scene.moderator.post(f"{scene.url}/approve")
+    await scene.finance_director.post(f"{scene.url}/approve")
 
     response = await scene.payer.post(f"{scene.url}/comments", json={"comment": "Paying by card tomorrow"})
 
@@ -74,6 +75,7 @@ async def test_a_payer_comments_without_changing_the_status(scene: Scene) -> Non
 
 async def test_the_author_comments_on_a_paid_request(scene: Scene) -> None:
     await scene.moderator.post(f"{scene.url}/approve")
+    await scene.finance_director.post(f"{scene.url}/approve")
     await scene.payer.post(f"{scene.url}/pay", json={"paid_on": "2026-10-01", "amount": "1590.00"})
 
     response = await scene.author.post(f"{scene.url}/comments", json={"comment": "Received, thanks"})
@@ -106,7 +108,7 @@ async def test_a_comment_on_a_request_the_person_cannot_see_looks_like_a_missing
 
 async def test_the_journal_is_shown_oldest_first(scene: Scene) -> None:
     await scene.author.post(f"{scene.url}/comments", json={"comment": "Urgent, please"})
-    await scene.moderator.post(f"{scene.url}/escalate", json={"comment": "Over my limit"})
+    await scene.moderator.post(f"{scene.url}/approve", json={"comment": "Over my limit"})
     await scene.finance_director.post(f"{scene.url}/approve")
 
     journal = (await scene.moderator.get(scene.url)).json()["journal"]

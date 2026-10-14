@@ -126,7 +126,7 @@ async def test_a_request_passed_on_is_told_to_every_finance_director_but_its_aut
     request = await cast.world.submit(cast.author, cast.lists, second_director)
     await cast.told()
 
-    await cast.act(second_director, request, "escalate", comment="Above my limit")
+    await cast.act(second_director, request, "approve", comment="Above my limit")
 
     assert await cast.texts() == [
         (
@@ -144,6 +144,7 @@ async def test_an_approved_request_is_told_to_its_payer_alone(cast: Cast) -> Non
     await cast.told()
 
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
 
     assert await cast.told() == [(AUTHOR, is_approved(request)), (PAYER, waits_for_payment(request))]
 
@@ -155,6 +156,7 @@ async def test_the_payer_is_told_how_and_when_to_pay(cast: Cast) -> None:
     await cast.told()
 
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
 
     assert (await cast.texts())[0] == (
         f"🟢 <b>{link(request)} is approved and waits for payment</b>\n"
@@ -169,6 +171,7 @@ async def test_an_approved_request_without_a_payer_is_told_to_every_payer(cast: 
     await cast.told()
 
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
 
     assert await cast.told() == [
         (AUTHOR, is_approved(request)),
@@ -205,6 +208,7 @@ async def test_a_request_given_another_moderator_is_told_to_them(cast: Cast) -> 
 async def test_a_change_of_the_payer_is_told_to_the_new_one(cast: Cast) -> None:
     request = await cast.submit(payer_id=cast.payer.id)
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
     await cast.told()
 
     await cast.act(cast.director, request, "reassign", payer_id=cast.other_payer.id)
@@ -235,6 +239,7 @@ async def test_a_request_paid_while_the_sender_is_at_work_is_not_told_to_the_oth
     request = await cast.submit()
     await cast.told()
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
 
     class PaysMeanwhile:
         """Stands in for Telegram: the first payer pays the request while their own message goes out."""
@@ -260,10 +265,11 @@ async def test_a_request_paid_while_the_sender_is_at_work_is_not_told_to_the_oth
 
 
 async def test_nobody_is_told_about_what_they_did_themselves(cast: Cast) -> None:
-    both = await cast.world.sign_in("moderator-payer", "moderator", "payer")
-    await link_telegram(both, cast.telegram, 9)
-    request = await cast.world.submit(cast.author, cast.lists, both, payer_id=both.id)
+    both = await cast.world.sign_in("director-payer", "finance_director", "payer")
+    request = await cast.world.submit(cast.author, cast.lists, cast.moderator, payer_id=both.id)
+    await cast.act(cast.moderator, request, "approve")
     await cast.told()
+    await link_telegram(both, cast.telegram, 9)
 
     # The one who approves is the payer the request now waits for.
     await cast.act(both, request, "approve")
@@ -278,13 +284,14 @@ async def test_the_author_is_told_who_approved_the_request(cast: Cast) -> None:
     request = await cast.submit()
     await cast.told()
 
-    await cast.act(cast.moderator, request, "approve", comment="Pay from the marketing budget")
+    await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve", comment="Pay from the marketing budget")
 
     assert (await cast.texts())[-1] == (
         f"🟢 <b>Your {link(request, 'request')} is approved</b>\n"
         "Monthly subscription for the video tool\n"
         "<b>1,590.00\u00a0₽</b>\n"
-        "Approved by Bob Moderator\n"
+        "Approved by Carol Director\n"
         "<blockquote>Pay from the marketing budget</blockquote>"
     )
 
@@ -292,7 +299,7 @@ async def test_the_author_is_told_who_approved_the_request(cast: Cast) -> None:
 async def test_the_author_is_told_who_rejected_the_request_and_why(cast: Cast) -> None:
     by_moderator = await cast.submit()
     by_director = await cast.submit()
-    await cast.act(cast.moderator, by_director, "escalate")
+    await cast.act(cast.moderator, by_director, "approve")
     await cast.told()
 
     await cast.act(cast.moderator, by_moderator, "reject", comment="Not this quarter")
@@ -325,6 +332,7 @@ async def test_an_author_who_cancels_is_told_nothing(cast: Cast) -> None:
 async def test_the_author_is_told_of_a_payment_with_its_date_and_amount(cast: Cast) -> None:
     request = await cast.submit()
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
     await cast.told()
 
     await cast.act(cast.payer, request, "pay", paid_on="2026-10-09", amount="1500.50")
@@ -341,6 +349,7 @@ async def test_the_author_is_told_of_a_payment_with_its_date_and_amount(cast: Ca
 async def test_the_author_is_told_of_every_payment_of_a_recurring_request_and_not_of_its_finish(cast: Cast) -> None:
     request = await cast.submit(recurrence="month", payer_id=cast.payer.id)
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
     await cast.told()
 
     await cast.act(cast.payer, request, "pay", paid_on="2026-10-09", amount="100")
@@ -360,6 +369,7 @@ async def test_the_author_is_told_of_every_payment_of_a_recurring_request_and_no
 async def test_a_comment_of_the_payer_is_told_to_the_author_and_the_moderator(cast: Cast) -> None:
     request = await cast.submit()
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
     await cast.told()
 
     await cast.payer.post(f"/v1/requests/{request['id']}/comments", json={"comment": "Which account do I pay from?"})
@@ -403,6 +413,7 @@ async def test_a_long_situation_and_a_long_comment_are_cut_short(cast: Cast) -> 
 async def test_a_new_period_is_told_to_the_payer_once(cast: Cast) -> None:
     request = await cast.submit(recurrence="month", payer_id=cast.payer.id)
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
     await cast.act(cast.payer, request, "pay", paid_on="2026-10-09", amount="100")
     await cast.told()
     due = (PAYER, f"🟢 Request No. {request['id']}: a payment for the new period is due")
@@ -428,7 +439,8 @@ async def test_an_action_goes_through_while_telegram_is_down_and_the_messages_fo
     await cast.told()
     cast.telegram.available = False
 
-    approved = await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.moderator, request, "approve")
+    approved = await cast.act(cast.director, request, "approve")
     with pytest.raises(TelegramUnavailable):
         await cast.told()
     cast.telegram.available = True
@@ -453,6 +465,7 @@ async def test_a_blocked_bot_takes_the_link_off_and_the_rest_is_sent(cast: Cast)
     cast.telegram.closed.add(PAYER)
 
     await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
 
     assert await cast.told() == [(AUTHOR, is_approved(request)), (OTHER_PAYER, waits_for_payment(request))]
     assert (await cast.payer.get("/v1/me")).json()["notifications"]["telegram_linked"] is False

@@ -72,18 +72,18 @@ async def cast(world: World, clock: Clock, telegram: FakeTelegram) -> Cast:
 # --- the buttons a message carries ---
 
 
-async def test_the_moderator_is_offered_four_decisions(cast: Cast) -> None:
+async def test_the_moderator_is_offered_three_decisions(cast: Cast) -> None:
     await cast.submit()
 
     message = await cast.message_to(MODERATOR)
 
-    assert list(cast.telegram.buttons(message)) == ["Approve", "To the director", "Return", "Reject"]
-    assert [len(row) for row in cast.telegram.keyboards[message]] == [2, 2]
+    assert list(cast.telegram.buttons(message)) == ["Approve", "Return", "Reject"]
+    assert [len(row) for row in cast.telegram.keyboards[message]] == [2, 1]
 
 
 async def test_the_finance_director_is_offered_three_decisions(cast: Cast) -> None:
     request = await cast.submit()
-    await cast.moderator.post(f"/v1/requests/{request['id']}/escalate", json={})
+    await cast.moderator.post(f"/v1/requests/{request['id']}/approve", json={})
 
     message = await cast.message_to(DIRECTOR)
 
@@ -97,6 +97,7 @@ async def test_the_payer_and_the_author_get_no_buttons(cast: Cast) -> None:
     cast.telegram.keyboards.clear()
 
     await cast.moderator.post(f"/v1/requests/{approved['id']}/approve", json={})
+    await cast.director.post(f"/v1/requests/{approved['id']}/approve", json={})
     await cast.moderator.post(f"/v1/requests/{returned['id']}/return", json={})
     await cast.deliver()
 
@@ -137,10 +138,10 @@ async def test_the_moderator_approves_with_a_button(cast: Cast) -> None:
     await cast.press(MODERATOR, message, "Approve")
 
     decided = await cast.read(request)
-    assert decided["status"] == "approved"
+    assert decided["status"] == "escalated"
     assert decided["journal"][-1]["person"]["id"] == cast.moderator.id
-    assert cast.telegram.answers == [f"Request No. {request['id']} is approved. The author will get a message."]
-    assert cast.last(MODERATOR) == f"Request No. {request['id']} is approved. The author will get a message."
+    assert cast.telegram.answers == [f"Request No. {request['id']} is passed to the finance director"]
+    assert cast.last(MODERATOR) == f"Request No. {request['id']} is passed to the finance director"
     # The answer stands by the message it answers, and the buttons under that message are gone.
     assert cast.telegram.replies[cast.telegram.latest] == message
     assert message not in cast.telegram.keyboards
@@ -148,9 +149,10 @@ async def test_the_moderator_approves_with_a_button(cast: Cast) -> None:
 
 async def test_a_decision_from_telegram_is_told_like_one_from_the_service(cast: Cast) -> None:
     request = await cast.submit()
-    message = await cast.message_to(MODERATOR)
+    await cast.moderator.post(f"/v1/requests/{request['id']}/approve", json={})
+    message = await cast.message_to(DIRECTOR)
 
-    await cast.press(MODERATOR, message, "Approve")
+    await cast.press(DIRECTOR, message, "Approve")
     cast.telegram.sent.clear()
     await cast.deliver()
 
@@ -160,14 +162,18 @@ async def test_a_decision_from_telegram_is_told_like_one_from_the_service(cast: 
     ]
 
 
-async def test_the_moderator_passes_the_request_to_the_finance_director(cast: Cast) -> None:
+async def test_the_finance_director_approves_with_a_button(cast: Cast) -> None:
     request = await cast.submit()
-    message = await cast.message_to(MODERATOR)
+    await cast.moderator.post(f"/v1/requests/{request['id']}/approve", json={})
+    message = await cast.message_to(DIRECTOR)
 
-    await cast.press(MODERATOR, message, "To the director")
+    await cast.press(DIRECTOR, message, "Approve")
 
-    assert (await cast.read(request))["status"] == "escalated"
-    assert cast.last(MODERATOR).startswith(f"Request No. {request['id']} is passed to the finance director")
+    decided = await cast.read(request)
+    assert decided["status"] == "approved"
+    assert decided["journal"][-1]["person"]["id"] == cast.director.id
+    assert cast.telegram.answers == [f"Request No. {request['id']} is approved. The author will get a message."]
+    assert cast.last(DIRECTOR) == f"Request No. {request['id']} is approved. The author will get a message."
 
 
 async def test_a_request_decided_elsewhere_is_left_as_it_is(cast: Cast) -> None:
@@ -192,10 +198,10 @@ async def test_a_button_pressed_twice_decides_once(cast: Cast) -> None:
     await read_bot(cast.telegram, cast.clock.today)
 
     journal = (await cast.read(request))["journal"]
-    assert [entry["status"] for entry in journal] == ["new", "approved"]
+    assert [entry["status"] for entry in journal] == ["new", "escalated"]
     assert cast.telegram.answers == [
-        f"Request No. {request['id']} is approved. The author will get a message.",
-        f"Request No. {request['id']} is already in the status 'Approved'",
+        f"Request No. {request['id']} is passed to the finance director",
+        f"Request No. {request['id']} is already in the status 'Moderated'",
     ]
 
 
@@ -230,7 +236,7 @@ async def test_a_button_pressed_from_another_chat_decides_nothing(cast: Cast) ->
 
 async def test_a_rejection_takes_the_reason_from_the_next_message(cast: Cast) -> None:
     request = await cast.submit()
-    await cast.moderator.post(f"/v1/requests/{request['id']}/escalate", json={})
+    await cast.moderator.post(f"/v1/requests/{request['id']}/approve", json={})
     message = await cast.message_to(DIRECTOR)
 
     await cast.press(DIRECTOR, message, "Reject")
@@ -291,7 +297,7 @@ async def test_a_cancelled_decision_leaves_the_buttons(cast: Cast) -> None:
 
     assert (await cast.read(request))["status"] == "new"
     assert question not in cast.telegram.keyboards
-    assert list(cast.telegram.buttons(message)) == ["Approve", "To the director", "Return", "Reject"]
+    assert list(cast.telegram.buttons(message)) == ["Approve", "Return", "Reject"]
     assert cast.last(MODERATOR).startswith("I write about requests")
 
 
@@ -306,7 +312,7 @@ async def test_another_button_takes_the_question_about_the_reason_back(cast: Cas
     await cast.say(MODERATOR, "A message that is no reason")
 
     assert (await cast.read(first))["status"] == "new"
-    assert (await cast.read(second))["status"] == "approved"
+    assert (await cast.read(second))["status"] == "escalated"
     assert cast.last(MODERATOR).startswith("I write about requests")
 
 
@@ -357,7 +363,7 @@ async def test_a_finance_director_gets_no_buttons_for_their_own_request(cast: Ca
     cast.telegram.sent.clear()
     cast.telegram.keyboards.clear()
 
-    await cast.moderator.post(f"/v1/requests/{request['id']}/escalate", json={})
+    await cast.moderator.post(f"/v1/requests/{request['id']}/approve", json={})
     await cast.deliver()
 
     # The other finance director decides; the author of the request is not even told that it waits.

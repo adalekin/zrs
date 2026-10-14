@@ -55,8 +55,9 @@ TRANSITIONS: tuple[Transition, ...] = (
     Transition(Action.CANCEL, Status.ESCALATED, Status.REJECTED, Party.AUTHOR),
     # Money that has been paid cannot be called back by cancelling the request.
     Transition(Action.CANCEL, Status.APPROVED, Status.REJECTED, Party.AUTHOR, without_a_payment),
-    Transition(Action.APPROVE, Status.NEW, Status.APPROVED, Party.MODERATOR),
-    Transition(Action.ESCALATE, Status.NEW, Status.ESCALATED, Party.MODERATOR),
+    # The moderator never gives the final approval: their approve sends the request
+    # to the finance director, who alone brings it to approved.
+    Transition(Action.APPROVE, Status.NEW, Status.ESCALATED, Party.MODERATOR),
     Transition(Action.RETURN, Status.NEW, Status.RETURNED, Party.MODERATOR),
     Transition(Action.REJECT, Status.NEW, Status.REJECTED, Party.MODERATOR),
     Transition(Action.APPROVE, Status.ESCALATED, Status.APPROVED, Party.FINANCE_DIRECTOR),

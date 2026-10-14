@@ -32,9 +32,11 @@ class Cast:
         return await self.world.submit(self.author, self.lists, self.moderator, **overrides)
 
     async def approved(self, **overrides: Any) -> dict[str, Any]:
-        """A request approved by its moderator."""
+        """A request approved by the finance director."""
         request = await self.submit(**overrides)
         response = await self.moderator.post(f"/v1/requests/{request['id']}/approve", json={})
+        assert response.status_code == 200, response.text
+        response = await self.director.post(f"/v1/requests/{request['id']}/approve", json={})
         assert response.status_code == 200, response.text
         return response.json()
 
@@ -192,8 +194,8 @@ async def test_paying_a_recurring_request_leaves_it_approved(cast: Cast) -> None
     assert paid["status"] == "approved"
     assert paid["paid_on"] == "2026-10-09"
     assert [(p["paid_on"], p["amount"]) for p in paid["payments"]] == [("2026-10-09", "1700.0000")]
-    # A payment is no decision: the journal keeps the submission and the approval alone.
-    assert [entry["status"] for entry in paid["journal"]] == ["new", "approved"]
+    # A payment is no decision: the journal keeps the submission and the decisions alone.
+    assert [entry["status"] for entry in paid["journal"]] == ["new", "escalated", "approved"]
 
 
 async def test_a_recurring_request_takes_the_next_payment(cast: Cast) -> None:

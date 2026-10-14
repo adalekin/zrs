@@ -22,7 +22,7 @@ from internal.service.telegram import Button, Keyboard
 
 #: The decisions of an approver, in the order of their buttons. Paying, resubmitting, cancelling
 #: and editing stay in the service.
-DECISIONS: tuple[Action, ...] = (Action.APPROVE, Action.ESCALATE, Action.RETURN, Action.REJECT)
+DECISIONS: tuple[Action, ...] = (Action.APPROVE, Action.RETURN, Action.REJECT)
 #: The decisions whose reason the author needs: the bot asks for it before it acts.
 ASK_REASON: frozenset[Action] = frozenset({Action.RETURN, Action.REJECT})
 

@@ -76,9 +76,13 @@ async def test_the_author_removes_a_file_while_the_request_can_be_edited(scene: 
     assert (await scene.author.get(scene.url)).json()["attachments"] == []
 
 
-async def test_files_of_an_approved_request_cannot_be_added_or_removed(scene: Scene, storage: FakeStorage) -> None:
+async def test_files_of_an_approved_request_cannot_be_added_or_removed(
+    world: World, scene: Scene, storage: FakeStorage
+) -> None:
+    director = await world.sign_in("director", "finance_director")
     attachment = (await scene.author.post(f"{scene.url}/attachments", files={"file": INVOICE})).json()
     await scene.moderator.post(f"{scene.url}/approve")
+    await director.post(f"{scene.url}/approve")
 
     added = await scene.author.post(f"{scene.url}/attachments", files={"file": INVOICE})
     removed = await scene.author.delete(f"{scene.url}/attachments/{attachment['id']}")

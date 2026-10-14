@@ -281,8 +281,10 @@ async def test_an_edit_cannot_make_the_author_their_own_moderator(world: World, 
 async def test_an_approved_request_cannot_be_edited(
     world: World, lists: dict[str, int], author: Session, moderator: Session
 ) -> None:
+    director = await world.sign_in("director", "finance_director")
     request = await world.submit(author, lists, moderator)
     await moderator.post(f"/v1/requests/{request['id']}/approve")
+    await director.post(f"/v1/requests/{request['id']}/approve")
 
     response = await author.patch(f"/v1/requests/{request['id']}", json={"amount": "1"})
 

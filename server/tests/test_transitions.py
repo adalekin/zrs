@@ -9,7 +9,7 @@ import pytest
 from tests.conftest import SUBMITTED_ON, TODAY, Session, World
 
 STATUSES = ["new", "returned", "escalated", "approved", "paid", "rejected"]
-ACTIONS = ["approve", "escalate", "return", "reject", "resubmit", "cancel", "pay", "reassign", "finish"]
+ACTIONS = ["approve", "return", "reject", "resubmit", "cancel", "pay", "reassign", "finish"]
 PERSONAS = ["author", "moderator", "finance_director", "payer"]
 
 #: (persona, action, status the request is in) -> status it moves to. Everything else is refused.
@@ -19,8 +19,7 @@ ALLOWED: dict[tuple[str, str, str], str] = {
     ("author", "cancel", "returned"): "rejected",
     ("author", "cancel", "escalated"): "rejected",
     ("author", "cancel", "approved"): "rejected",
-    ("moderator", "approve", "new"): "approved",
-    ("moderator", "escalate", "new"): "escalated",
+    ("moderator", "approve", "new"): "escalated",
     ("moderator", "return", "new"): "returned",
     ("moderator", "reject", "new"): "rejected",
     ("finance_director", "approve", "escalated"): "approved",
@@ -65,9 +64,13 @@ async def drive(cast: Cast, status: str) -> None:
     steps: dict[str, list[tuple[Session, str, dict[str, Any]]]] = {
         "new": [],
         "returned": [(cast.moderator, "return", {})],
-        "escalated": [(cast.moderator, "escalate", {})],
-        "approved": [(cast.moderator, "approve", {})],
-        "paid": [(cast.moderator, "approve", {}), (cast.payer, "pay", {"paid_on": "2026-10-01", "amount": "1590.00"})],
+        "escalated": [(cast.moderator, "approve", {})],
+        "approved": [(cast.moderator, "approve", {}), (cast.finance_director, "approve", {})],
+        "paid": [
+            (cast.moderator, "approve", {}),
+            (cast.finance_director, "approve", {}),
+            (cast.payer, "pay", {"paid_on": "2026-10-01", "amount": "1590.00"}),
+        ],
         "rejected": [(cast.moderator, "reject", {})],
     }
     for session, action, body in steps[status]:
@@ -142,7 +145,7 @@ async def test_a_finance_director_cannot_approve_their_own_request(world: World)
     author = await world.sign_in("author-director", "requester", "finance_director")
     moderator = await world.sign_in("moderator", "moderator")
     request = await world.submit(author, lists, moderator)
-    await moderator.post(f"/v1/requests/{request['id']}/escalate")
+    await moderator.post(f"/v1/requests/{request['id']}/approve")
 
     response = await author.post(f"/v1/requests/{request['id']}/approve")
 
@@ -158,7 +161,7 @@ async def test_a_moderator_cannot_approve_as_finance_director_what_they_escalate
     moderator = await world.sign_in("moderator-director", "moderator", "finance_director")
     other_director = await world.sign_in("other-director", "finance_director")
     request = await world.submit(author, lists, moderator)
-    await moderator.post(f"/v1/requests/{request['id']}/escalate")
+    await moderator.post(f"/v1/requests/{request['id']}/approve")
 
     response = await moderator.post(f"/v1/requests/{request['id']}/approve")
 

@@ -51,7 +51,6 @@
   "action": {
     "approveNew": "Утвердить",
     "approveEscalated": "Одобрить",
-    "escalate": "Передать финансовому директору",
     "return": "Вернуть автору",
     "reject": "Отклонить",
     "resubmit": "Отправить заново",

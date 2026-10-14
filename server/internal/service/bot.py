@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from internal.config import settings
-from internal.entity.enums import Action
+from internal.entity.enums import Action, Status
 from internal.entity.expense_request import ExpenseRequest
 from internal.entity.notification import TelegramCursor, TelegramIntent
 from internal.exceptions import StatusConflict
@@ -124,19 +124,27 @@ class Decide:
         actor = Actor.as_last_signed_in(intent.person)
         requests = ExpenseRequestService(session=desk.session)
         try:
-            await requests.act(
-                actor, intent.request_id, Action(intent.action), comment=comment, parameters={}, today=desk.today
-            )
-        except StatusConflict as conflict:
-            outcome = desk.words.say(
-                "already", id=intent.request_id, status=desk.words.say(f"status_{conflict.status.value}")
-            )
-        except (Forbidden, NotFound):
-            outcome = desk.words.say("not_available")
+            action = Action(intent.action)
+        except ValueError:
+            # A button offered by a version that still had this action.
+            outcome = desk.words.say("button_gone")
         else:
-            outcome = (
-                f"{desk.words.say(f'done_{intent.action}', id=intent.request_id)}. {desk.words.say('author_is_told')}"
-            )
+            try:
+                request = await requests.act(
+                    actor, intent.request_id, action, comment=comment, parameters={}, today=desk.today
+                )
+            except StatusConflict as conflict:
+                outcome = desk.words.say(
+                    "already", id=intent.request_id, status=desk.words.say(f"status_{conflict.status.value}")
+                )
+            except (Forbidden, NotFound):
+                outcome = desk.words.say("not_available")
+            else:
+                # The wording follows the status the action brought, not the name of the action.
+                outcome = desk.words.say(f"done_{request.status}", id=intent.request_id)
+                # On its way to the finance director the request tells the author nothing.
+                if request.status != Status.ESCALATED.value:
+                    outcome += f". {desk.words.say('author_is_told')}"
 
         await DecisionOffer(desk.session).close(intent)
         # The buttons go from under the message about the request and from under the question about the reason.
@@ -182,7 +190,12 @@ class PressButton(Handler[Pressed], Decide):
                 KeyboardChange(event.chat_id, event.message_id, None),
             ]
             return
-        if choice == "" and Action(intent.action) in ASK_REASON:
+        try:
+            asks_reason = Action(intent.action) in ASK_REASON
+        except ValueError:
+            # A button offered by a version that still had this action.
+            asks_reason = False
+        if choice == "" and asks_reason:
             intent.state = AWAITING_REASON
             question = desk.words.html(f"ask_reason_{intent.action}", id=intent.request_id)
             desk.replies += [

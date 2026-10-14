@@ -55,8 +55,8 @@ async def test_two_decisions_sent_at_once_end_in_exactly_one_of_them(world: Worl
         approved, rejected = await asyncio.gather(moderator.post(f"{url}/approve"), moderator.post(f"{url}/reject"))
 
         assert sorted([approved.status_code, rejected.status_code]) == [200, 409]
-        winner = "approved" if approved.status_code == 200 else "rejected"
-        loser = rejected if winner == "approved" else approved
+        winner = "escalated" if approved.status_code == 200 else "rejected"
+        loser = rejected if winner == "escalated" else approved
         assert loser.json()["status"] == winner
         body = (await author.get(url)).json()
         assert body["status"] == winner
@@ -81,7 +81,7 @@ async def test_a_cancellation_that_loses_to_an_approval_still_cancels(world: Wor
         assert body["status"] == "rejected"
         journal = [entry["status"] for entry in body["journal"]]
         if approved.status_code == 200:
-            assert journal == ["new", "approved", "rejected"]
+            assert journal == ["new", "escalated", "rejected"]
         else:
             assert approved.status_code == 409
             assert journal == ["new", "rejected"]

@@ -6,7 +6,7 @@ export type Role = (typeof ROLES)[number]
 export const STATUSES = ['new', 'returned', 'escalated', 'approved', 'paid', 'rejected'] as const
 export type Status = (typeof STATUSES)[number]
 
-export type Action = 'approve' | 'escalate' | 'return' | 'reject' | 'resubmit' | 'cancel' | 'pay' | 'reassign' | 'finish'
+export type Action = 'approve' | 'return' | 'reject' | 'resubmit' | 'cancel' | 'pay' | 'reassign' | 'finish'
 
 /** How often a request is paid: once in every calendar period of this length. */
 export const RECURRENCES = ['week', 'month', 'quarter', 'year'] as const

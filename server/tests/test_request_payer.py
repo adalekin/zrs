@@ -22,9 +22,11 @@ class Cast:
         return await self.world.submit(self.author, self.lists, self.moderator, **overrides)
 
     async def approved(self, **body: Any) -> dict[str, Any]:
-        """A request approved by its moderator; ``body`` goes to the approval."""
+        """A request approved by the finance director; ``body`` goes to that approval."""
         request = await self.submit()
-        response = await self.moderator.post(f"/v1/requests/{request['id']}/approve", json=body)
+        response = await self.moderator.post(f"/v1/requests/{request['id']}/approve")
+        assert response.status_code == 200, response.text
+        response = await self.director.post(f"/v1/requests/{request['id']}/approve", json=body)
         assert response.status_code == 200, response.text
         return response.json()
 
@@ -114,15 +116,17 @@ async def test_an_author_who_is_a_payer_may_name_themselves(cast: Cast) -> None:
 
 
 async def test_the_moderator_names_the_payer_when_approving(cast: Cast) -> None:
-    request = await cast.approved(payer_id=cast.payer.id)
+    request = await cast.submit()
 
-    assert request["status"] == "approved"
-    assert request["payer"]["id"] == cast.payer.id
+    response = await cast.moderator.post(f"/v1/requests/{request['id']}/approve", json={"payer_id": cast.payer.id})
+
+    assert response.json()["status"] == "escalated"
+    assert response.json()["payer"]["id"] == cast.payer.id
 
 
 async def test_the_finance_director_replaces_the_payer_when_approving(cast: Cast) -> None:
     request = await cast.submit(payer_id=cast.payer.id)
-    await cast.moderator.post(f"/v1/requests/{request['id']}/escalate")
+    await cast.moderator.post(f"/v1/requests/{request['id']}/approve")
 
     response = await cast.director.post(f"/v1/requests/{request['id']}/approve", json={"payer_id": cast.other_payer.id})
 
@@ -132,8 +136,9 @@ async def test_the_finance_director_replaces_the_payer_when_approving(cast: Cast
 
 async def test_an_approval_that_names_nobody_keeps_the_payer(cast: Cast) -> None:
     request = await cast.submit(payer_id=cast.payer.id)
+    await cast.moderator.post(f"/v1/requests/{request['id']}/approve")
 
-    response = await cast.moderator.post(f"/v1/requests/{request['id']}/approve")
+    response = await cast.director.post(f"/v1/requests/{request['id']}/approve")
 
     assert response.json()["status"] == "approved"
     assert response.json()["payer"]["id"] == cast.payer.id
@@ -287,6 +292,7 @@ async def test_a_finance_director_reassigns_their_own_request(cast: Cast) -> Non
     author = await cast.world.sign_in("author-director", "requester", "finance_director")
     request = await cast.world.submit(author, cast.lists, cast.moderator)
     await cast.moderator.post(f"/v1/requests/{request['id']}/approve")
+    await cast.director.post(f"/v1/requests/{request['id']}/approve")
 
     response = await author.post(f"/v1/requests/{request['id']}/reassign", json={"payer_id": cast.payer.id})
 
@@ -366,7 +372,7 @@ async def test_approving_with_a_new_payer_leaves_one_entry_that_names_them(cast:
 
     journal = request["journal"]
 
-    assert [entry["status"] for entry in journal] == ["new", "approved"]
+    assert [entry["status"] for entry in journal] == ["new", "escalated", "approved"]
     assert journal[-1]["status_changed"] is True
     assert payer_change(journal[-1]) == (True, cast.payer.id)
 
@@ -427,10 +433,11 @@ async def test_reassigning_to_the_same_payer_leaves_an_entry_only_with_a_comment
 async def test_the_author_naming_a_payer_and_the_payment_change_no_payer_in_the_journal(cast: Cast) -> None:
     request = await cast.submit(payer_id=cast.payer.id)
     await cast.moderator.post(f"/v1/requests/{request['id']}/approve", json={})
+    await cast.director.post(f"/v1/requests/{request['id']}/approve", json={})
 
     paid = await cast.payer.post(
         f"/v1/requests/{request['id']}/pay", json={"paid_on": "2026-10-09", "amount": "1590.00"}
     )
 
     assert paid.status_code == 200, paid.text
-    assert [payer_change(entry) for entry in paid.json()["journal"]] == [(False, None)] * 3
+    assert [payer_change(entry) for entry in paid.json()["journal"]] == [(False, None)] * 4

@@ -59,7 +59,9 @@ async def test_a_request_is_counted_in_the_status_it_has_now(world: World) -> No
     paid = await world.submit(author, lists, moderator, amount="48000.00")
     await world.submit(author, lists, moderator, amount="1000.00")
     await moderator.post(f"/v1/requests/{approved['id']}/approve", json={})
+    await director.post(f"/v1/requests/{approved['id']}/approve", json={})
     await moderator.post(f"/v1/requests/{paid['id']}/approve", json={})
+    await director.post(f"/v1/requests/{paid['id']}/approve", json={})
     await payer.post(f"/v1/requests/{paid['id']}/pay", json={"paid_on": "2026-10-08", "amount": "1590.00"})
 
     totals = await read(director)
@@ -97,7 +99,7 @@ async def test_awaiting_me_counts_the_queue_of_the_person_only(world: World) -> 
     director = await world.sign_in("director", "finance_director")
     waiting = await world.submit(author, lists, moderator, amount="300000.00")
     await world.submit(author, lists, moderator, amount="18500.00")
-    await moderator.post(f"/v1/requests/{waiting['id']}/escalate", json={})
+    await moderator.post(f"/v1/requests/{waiting['id']}/approve", json={})
 
     everything = await read(director)
     queue = await read(director, awaiting_me=True)

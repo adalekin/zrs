@@ -19,7 +19,6 @@ class Status(StrEnum):
 
 class Action(StrEnum):
     APPROVE = "approve"
-    ESCALATE = "escalate"
     RETURN = "return"
     REJECT = "reject"
     RESUBMIT = "resubmit"

@@ -106,6 +106,7 @@ async def test_the_status_filter(world: World, lists: dict[str, int]) -> None:
     paid = await world.submit(author, lists, moderator)
     await world.submit(author, lists, moderator)
     await moderator.post(f"/v1/requests/{paid['id']}/approve")
+    await director.post(f"/v1/requests/{paid['id']}/approve")
     await payer.post(f"/v1/requests/{paid['id']}/pay", json={"paid_on": "2026-10-01", "amount": "1590.00"})
 
     assert await ids(director, status="paid") == [paid["id"]]
@@ -124,8 +125,9 @@ async def test_the_queue_of_each_role(world: World, lists: dict[str, int]) -> No
     escalated = await world.submit(author, lists, moderator)
     approved = await world.submit(author, lists, moderator)
     await moderator.post(f"/v1/requests/{returned['id']}/return")
-    await moderator.post(f"/v1/requests/{escalated['id']}/escalate")
+    await moderator.post(f"/v1/requests/{escalated['id']}/approve")
     await moderator.post(f"/v1/requests/{approved['id']}/approve")
+    await director.post(f"/v1/requests/{approved['id']}/approve")
 
     assert await ids(author, awaiting_me=True) == [returned["id"]]
     assert await ids(moderator, awaiting_me=True) == [new["id"]]
@@ -141,8 +143,9 @@ async def test_the_queue_of_a_person_with_two_roles_joins_both(world: World, lis
     escalated = await world.submit(author, lists, moderator)
     approved = await world.submit(author, lists, moderator)
     await world.submit(author, lists, moderator)
-    await moderator.post(f"/v1/requests/{escalated['id']}/escalate")
+    await moderator.post(f"/v1/requests/{escalated['id']}/approve")
     await moderator.post(f"/v1/requests/{approved['id']}/approve")
+    await both.post(f"/v1/requests/{approved['id']}/approve")
 
     assert sorted(await ids(both, awaiting_me=True)) == sorted([escalated["id"], approved["id"]])
 
@@ -157,8 +160,8 @@ async def test_a_finance_director_queue_leaves_out_their_own_and_moderated_reque
     own = await world.submit(director, lists, moderator)
     moderated = await world.submit(author, lists, director)
     foreign = await world.submit(author, lists, moderator)
-    await moderator.post(f"/v1/requests/{own['id']}/escalate")
-    await director.post(f"/v1/requests/{moderated['id']}/escalate")
-    await moderator.post(f"/v1/requests/{foreign['id']}/escalate")
+    await moderator.post(f"/v1/requests/{own['id']}/approve")
+    await director.post(f"/v1/requests/{moderated['id']}/approve")
+    await moderator.post(f"/v1/requests/{foreign['id']}/approve")
 
     assert await ids(director, awaiting_me=True) == [foreign["id"]]

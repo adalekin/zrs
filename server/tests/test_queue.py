@@ -47,11 +47,13 @@ async def test_a_person_is_awaited_by_a_request_exactly_when_it_is_in_their_queu
     await act(moderator, returned, "return")
     for by, to in ((author, moderator), (everything, moderator), (author, everything)):
         escalated = await submit(by=by, to=to)
-        await act(to, escalated, "escalate")
+        await act(to, escalated, "approve")
     approved = await submit()
     await act(moderator, approved, "approve")
+    await act(director, approved, "approve")
     assigned = await submit(payer_id=payer.id)
     await act(moderator, assigned, "approve")
+    await act(director, assigned, "approve")
     for recurrence, paid_on in (
         ("month", None),
         ("month", "2026-10-06"),
@@ -60,13 +62,16 @@ async def test_a_person_is_awaited_by_a_request_exactly_when_it_is_in_their_queu
     ):
         recurring = await submit(recurrence=recurrence)
         await act(moderator, recurring, "approve")
+        await act(director, recurring, "approve")
         if paid_on:
             await act(payer, recurring, "pay", paid_on=paid_on, amount="100")
     recurring_assigned = await submit(recurrence="month", payer_id=other_payer.id)
     await act(moderator, recurring_assigned, "approve")
+    await act(director, recurring_assigned, "approve")
     await act(other_payer, recurring_assigned, "pay", paid_on="2026-10-06", amount="100")
     paid = await submit()
     await act(moderator, paid, "approve")
+    await act(director, paid, "approve")
     await act(payer, paid, "pay", paid_on="2026-10-06", amount="100")
     rejected = await submit()
     await act(moderator, rejected, "reject")

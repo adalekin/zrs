@@ -64,7 +64,7 @@ async def test_a_request_rejected_by_its_moderator_names_them(cast: Cast) -> Non
 
 async def test_a_request_rejected_by_the_finance_director_names_them(cast: Cast) -> None:
     request = await cast.submit()
-    await cast.act(cast.moderator, request, "escalate")
+    await cast.act(cast.moderator, request, "approve")
 
     rejected = await cast.act(cast.director, request, "reject")
 
@@ -100,7 +100,7 @@ async def test_the_migration_names_who_rejected_the_requests_rejected_before_it(
     by_author = await cast.submit()
     untouched = await cast.submit()
     await cast.act(cast.moderator, by_moderator, "reject")
-    await cast.act(cast.moderator, by_director, "escalate")
+    await cast.act(cast.moderator, by_director, "approve")
     await cast.act(cast.director, by_director, "reject")
     await cast.act(cast.moderator, by_author, "return")
     await cast.act(cast.author, by_author, "cancel")
