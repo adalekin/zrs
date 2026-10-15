@@ -165,3 +165,14 @@ async def test_a_finance_director_queue_leaves_out_their_own_and_moderated_reque
     await moderator.post(f"/v1/requests/{foreign['id']}/approve")
 
     assert await ids(director, awaiting_me=True) == [foreign["id"]]
+
+
+async def test_a_self_moderated_request_waits_for_the_director_not_its_author(
+    world: World, lists: dict[str, int]
+) -> None:
+    author = await world.sign_in("author-moderator", "requester", "moderator")
+    director = await world.sign_in("director", "finance_director")
+    own = await world.submit(author, lists, author)
+
+    assert await ids(author, awaiting_me=True) == []
+    assert await ids(director, awaiting_me=True) == [own["id"]]

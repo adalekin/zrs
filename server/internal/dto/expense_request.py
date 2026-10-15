@@ -21,7 +21,8 @@ class RequestCreate(BaseModel):
     # from "the field was left out": both are answered as an error on this field.
     operation_type_id: int | None = None
     priority_id: int | None = None
-    moderator_id: int
+    #: Required of an author without the moderator role; a moderator's own request is moderated by its author.
+    moderator_id: int | None = None
     situation: Text
     solution: Text
     amount: Amount = Field(description="Decimal number as a string, up to four fractional digits")

@@ -102,6 +102,12 @@ function writeDraft(fields: Fields | null) {
 
 const form: Fields = reactive({ ...baseline, ...readDraft() })
 
+/** The signed-in person may moderate their own request. */
+const canSelfModerate = computed(() => me.value?.roles.includes('moderator') ?? false)
+
+/** A request a moderator submits is moderated by its author: nothing to choose at creation. */
+const selfModerated = computed(() => !props.request && canSelfModerate.value)
+
 const idOrNull = (value: string) => value === '' ? null : Number(value)
 
 function payload(fields: Fields): Payload {
@@ -139,8 +145,8 @@ const operationTypes = computed(() => withCurrent(lists.value?.operationTypes ??
 const paymentForms = computed(() => withCurrent(lists.value?.paymentForms ?? [], request?.payment_form))
 const priorities = computed(() => withCurrent(lists.value?.priorities ?? [], request?.priority))
 const moderators = computed(() => withCurrent(
-  // Nobody moderates their own request.
-  (lists.value?.moderators ?? []).filter(person => person.id !== me.value?.id),
+  // Only a requester without the moderator role needs somebody else to moderate.
+  (lists.value?.moderators ?? []).filter(person => canSelfModerate.value || person.id !== me.value?.id),
   request?.moderator,
 ))
 const payers = computed(() => withCurrent(lists.value?.payers ?? [], request?.payer))
@@ -176,7 +182,7 @@ const blockers = computed(() => {
   return [
     operationTypes.value.length === 0 && t('request.blocked.operationType'),
     priorities.value.length === 0 && t('request.blocked.priority'),
-    moderators.value.length === 0 && t('request.blocked.moderator'),
+    !selfModerated.value && moderators.value.length === 0 && t('request.blocked.moderator'),
   ].filter(reason => reason !== false)
 })
 
@@ -187,7 +193,8 @@ watch(lists, async () => {
     const choices: [keyof Fields, string[]][] = [
       ['operation_type_id', operationTypes.value.map(item => String(item.id))],
       ['priority_id', priorities.value.map(item => String(item.id))],
-      ['moderator_id', moderators.value.map(person => String(person.id))],
+      // A moderator's own request leaves the choice of a moderator to the server.
+      ...selfModerated.value ? [] : [['moderator_id', moderators.value.map(person => String(person.id))] as [keyof Fields, string[]]],
       ['currency', currencies.value],
     ]
     for (const [field, values] of choices) {
@@ -283,6 +290,10 @@ async function submit() {
   errors.value = {}
   try {
     const values = payload(form)
+    // A draft from before could still hold a moderator: the server moderates this one itself.
+    if (selfModerated.value) {
+      values.moderator_id = null
+    }
     if (request) {
       // Only what the author changed is sent: untouched fields are not validated again.
       const changed = Object.fromEntries(
@@ -368,6 +379,7 @@ async function submit() {
       </FormField>
 
       <FormField
+        v-if="!selfModerated"
         id="moderator"
         class="sm:col-span-3"
         :label="$t('field.moderator')"

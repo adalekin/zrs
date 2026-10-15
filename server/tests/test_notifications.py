@@ -500,3 +500,10 @@ async def test_an_installation_without_notifications_writes_no_messages(
     monkeypatch.setattr(settings, "NOTIFICATIONS", "telegram")
 
     assert await cast.told() == []
+
+
+async def test_a_request_submitted_by_a_moderator_is_told_to_the_finance_director(cast: Cast) -> None:
+    author = await cast.world.sign_in("author-moderator", "requester", "moderator", name="Eve Author")
+    request = await cast.world.submit(author, cast.lists, author)
+
+    assert await cast.told() == [(DIRECTOR, f"🟡 Request No. {request['id']} is passed to you for approval")]

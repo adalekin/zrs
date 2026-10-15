@@ -139,10 +139,15 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             raise Forbidden("Only a requester may submit a request")
 
         values = dto.model_dump()
+        if actor.has(Role.MODERATOR) and values.get("moderator_id") is None:
+            # A moderator's own request is moderated by its author and goes straight
+            # to the finance director.
+            values["moderator_id"] = actor.id
         await self._validate(actor, values, creating=True)
 
         async with atomic(self.session):
-            request = ExpenseRequest(**values, author_id=actor.id, status=Status.NEW.value)
+            status = Status.ESCALATED if values["moderator_id"] == actor.id else Status.NEW
+            request = ExpenseRequest(**values, author_id=actor.id, status=status.value)
             self.session.add(request)
             await self.session.flush()
             self._record(request, actor, status_changed=True, payer_changed=False, comment=None)
@@ -335,8 +340,13 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
                 "The payment date is earlier than the day the request was submitted",
             )
 
-    async def _validate_moderator(self, actor: Actor, moderator_id: int) -> None:
+    async def _validate_moderator(self, actor: Actor, moderator_id: int | None) -> None:
+        if moderator_id is None:
+            raise FieldInvalid("moderator_id", "required", "The field is required")
         if moderator_id == actor.id:
+            # A request may be moderated by its author only when the author is a moderator.
+            if actor.has(Role.MODERATOR):
+                return
             raise FieldInvalid("moderator_id", "moderator_is_author", "You cannot choose yourself as the moderator")
 
         await self._validate_person("moderator_id", moderator_id, Role.MODERATOR, "not_a_moderator")

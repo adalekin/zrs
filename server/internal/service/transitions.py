@@ -35,6 +35,10 @@ def without_a_payment(request: ExpenseRequest) -> bool:
     return not request.has_payment
 
 
+def moderated_by_its_author(request: ExpenseRequest) -> bool:
+    return request.moderator_id == request.author_id
+
+
 @dataclass(frozen=True)
 class Transition:
     action: Action
@@ -49,6 +53,9 @@ class Transition:
 
 
 TRANSITIONS: tuple[Transition, ...] = (
+    # A request moderated by its own author goes back to the finance director: the first
+    # matching row wins, so this one stands before the plain resubmit.
+    Transition(Action.RESUBMIT, Status.RETURNED, Status.ESCALATED, Party.AUTHOR, moderated_by_its_author),
     Transition(Action.RESUBMIT, Status.RETURNED, Status.NEW, Party.AUTHOR),
     Transition(Action.CANCEL, Status.NEW, Status.REJECTED, Party.AUTHOR),
     Transition(Action.CANCEL, Status.RETURNED, Status.REJECTED, Party.AUTHOR),

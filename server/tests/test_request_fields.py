@@ -167,10 +167,10 @@ async def test_an_empty_payment_form_list_does_not_block_a_request_without_a_pay
 # --- choosing the moderator ---
 
 
-async def test_the_author_cannot_choose_themselves_as_the_moderator(world: World, lists: dict[str, int]) -> None:
-    both = await world.sign_in("both", "requester", "moderator")
-
-    response = await both.post("/v1/requests", json=world.request_body(lists, both))
+async def test_a_requester_cannot_choose_themselves_as_the_moderator(
+    world: World, lists: dict[str, int], author: Session
+) -> None:
+    response = await author.post("/v1/requests", json=world.request_body(lists, author))
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["moderator_id"]
@@ -267,12 +267,25 @@ async def test_a_required_field_cannot_be_cleared(
     assert error_fields(response.json()) == ["situation"]
 
 
-async def test_an_edit_cannot_make_the_author_their_own_moderator(world: World, lists: dict[str, int]) -> None:
+async def test_an_edit_can_make_a_moderator_the_moderator_of_their_own_request(
+    world: World, lists: dict[str, int]
+) -> None:
     both = await world.sign_in("both", "requester", "moderator")
     moderator = await world.sign_in("moderator", "moderator")
     request = await world.submit(both, lists, moderator)
 
     response = await both.patch(f"/v1/requests/{request['id']}", json={"moderator_id": both.id})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["moderator"]["id"] == both.id
+
+
+async def test_an_edit_cannot_make_a_requester_their_own_moderator(
+    world: World, lists: dict[str, int], author: Session, moderator: Session
+) -> None:
+    request = await world.submit(author, lists, moderator)
+
+    response = await author.patch(f"/v1/requests/{request['id']}", json={"moderator_id": author.id})
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["moderator_id"]
@@ -301,3 +314,43 @@ async def test_the_moderator_cannot_edit_the_request(
     response = await moderator.patch(f"/v1/requests/{request['id']}", json={"amount": "1"})
 
     assert response.status_code == 403
+
+
+# --- a request submitted by a moderator ---
+
+
+async def test_a_moderators_own_request_is_moderated_by_its_author(world: World, lists: dict[str, int]) -> None:
+    author = await world.sign_in("author-moderator", "requester", "moderator")
+    body = world.request_body(lists, author)
+    del body["moderator_id"]
+
+    response = await author.post("/v1/requests", json=body)
+
+    assert response.status_code == 201, response.text
+    created = response.json()
+    assert created["status"] == "escalated"
+    assert created["moderator"]["id"] == author.id
+
+
+async def test_a_moderator_who_names_themselves_gets_the_same(world: World, lists: dict[str, int]) -> None:
+    author = await world.sign_in("author-moderator", "requester", "moderator")
+
+    response = await author.post("/v1/requests", json=world.request_body(lists, author))
+
+    assert response.status_code == 201, response.text
+    created = response.json()
+    assert created["status"] == "escalated"
+    assert created["moderator"]["id"] == author.id
+
+
+async def test_a_moderator_who_names_another_moderator_takes_the_usual_way(
+    world: World, lists: dict[str, int], moderator: Session
+) -> None:
+    author = await world.sign_in("author-moderator", "requester", "moderator")
+
+    response = await author.post("/v1/requests", json=world.request_body(lists, moderator))
+
+    assert response.status_code == 201, response.text
+    created = response.json()
+    assert created["status"] == "new"
+    assert created["moderator"]["id"] == moderator.id

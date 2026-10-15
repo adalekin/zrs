@@ -285,3 +285,35 @@ async def test_the_reported_actions_match_the_specification(cast: Cast, persona:
     expected = sorted(action for (who, action, source) in ALLOWED if who == persona and source == status)
     assert sorted(body["actions"]) == expected
     assert body["can_edit"] is (persona == "author" and status in {"new", "returned"})
+
+
+# --- a request moderated by its own author ---
+
+
+async def test_a_returned_request_moderated_by_its_author_is_resubmitted_to_the_director(world: World) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author-moderator", "requester", "moderator")
+    director = await world.sign_in("director", "finance_director")
+    request = await world.submit(author, lists, author)
+    assert request["status"] == "escalated"
+    await director.post(f"/v1/requests/{request['id']}/return")
+
+    response = await author.post(f"/v1/requests/{request['id']}/resubmit")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "escalated"
+
+
+async def test_a_resubmitted_request_given_to_another_moderator_starts_over(world: World) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author-moderator", "requester", "moderator")
+    moderator = await world.sign_in("moderator", "moderator")
+    director = await world.sign_in("director", "finance_director")
+    request = await world.submit(author, lists, author)
+    await director.post(f"/v1/requests/{request['id']}/return")
+    await author.patch(f"/v1/requests/{request['id']}", json={"moderator_id": moderator.id})
+
+    response = await author.post(f"/v1/requests/{request['id']}/resubmit")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "new"
