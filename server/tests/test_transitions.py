@@ -25,6 +25,7 @@ ALLOWED: dict[tuple[str, str, str], str] = {
     ("finance_director", "approve", "escalated"): "approved",
     ("finance_director", "return", "escalated"): "returned",
     ("finance_director", "reject", "escalated"): "rejected",
+    ("payer", "return", "approved"): "returned",
     ("payer", "pay", "approved"): "paid",
     ("finance_director", "reassign", "approved"): "approved",
 }
@@ -195,6 +196,62 @@ async def test_a_request_returned_by_the_finance_director_goes_back_to_its_moder
     assert response.json()["moderator"]["id"] == cast.moderator.id
     waiting = (await cast.moderator.get("/v1/requests", params={"awaiting_me": True})).json()
     assert [item["id"] for item in waiting["items"]] == [cast.request_id]
+
+
+# --- a request returned by its payer ---
+
+
+async def test_the_assigned_payer_returns_an_approved_request_to_its_author(world: World) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author", "requester")
+    moderator = await world.sign_in("moderator", "moderator")
+    director = await world.sign_in("director", "finance_director")
+    payer = await world.sign_in("payer", "payer")
+    request = await world.submit(author, lists, moderator, payer_id=payer.id)
+    await moderator.post(f"/v1/requests/{request['id']}/approve", json={})
+    await director.post(f"/v1/requests/{request['id']}/approve", json={})
+
+    response = await payer.post(f"/v1/requests/{request['id']}/return", json={"comment": "Attach the invoice"})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "returned"
+    entry = response.json()["journal"][-1]
+    assert (entry["status"], entry["person"]["id"], entry["comment"]) == ("returned", payer.id, "Attach the invoice")
+    assert response.json()["payer"]["id"] == payer.id
+
+
+async def test_another_payer_cannot_return_a_request_assigned_to_someone_else(world: World) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author", "requester")
+    moderator = await world.sign_in("moderator", "moderator")
+    director = await world.sign_in("director", "finance_director")
+    payer = await world.sign_in("payer", "payer")
+    other_payer = await world.sign_in("other-payer", "payer")
+    request = await world.submit(author, lists, moderator, payer_id=payer.id)
+    await moderator.post(f"/v1/requests/{request['id']}/approve", json={})
+    await director.post(f"/v1/requests/{request['id']}/approve", json={})
+
+    response = await other_payer.post(f"/v1/requests/{request['id']}/return", json={})
+
+    assert response.status_code == 403
+    assert (await director.get(f"/v1/requests/{request['id']}")).json()["status"] == "approved"
+
+
+async def test_a_request_returned_by_its_payer_keeps_the_payer_when_resubmitted(world: World) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author", "requester")
+    moderator = await world.sign_in("moderator", "moderator")
+    director = await world.sign_in("director", "finance_director")
+    payer = await world.sign_in("payer", "payer")
+    request = await world.submit(author, lists, moderator, payer_id=payer.id)
+    await moderator.post(f"/v1/requests/{request['id']}/approve", json={})
+    await director.post(f"/v1/requests/{request['id']}/approve", json={})
+    await payer.post(f"/v1/requests/{request['id']}/return", json={})
+
+    response = await author.post(f"/v1/requests/{request['id']}/resubmit")
+
+    assert response.json()["status"] == "new"
+    assert response.json()["payer"]["id"] == payer.id
 
 
 async def test_paying_records_the_payer_and_the_payment_date(cast: Cast) -> None:

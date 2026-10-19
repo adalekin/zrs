@@ -196,6 +196,24 @@ async def test_a_returned_request_is_told_to_its_author_with_the_reason(cast: Ca
     ]
 
 
+async def test_a_request_returned_by_its_payer_is_told_to_its_author_with_the_payer_named(cast: Cast) -> None:
+    request = await cast.submit(payer_id=cast.payer.id)
+    await cast.act(cast.moderator, request, "approve")
+    await cast.act(cast.director, request, "approve")
+    await cast.told()
+
+    await cast.act(cast.payer, request, "return", comment="Attach the invoice")
+
+    assert await cast.texts() == [
+        (
+            f"🟠 <b>{link(request)} is returned to you for correction</b>\n"
+            "Monthly subscription for the video tool\n"
+            "Returned by Dave Payer\n"
+            "<blockquote>Attach the invoice</blockquote>"
+        )
+    ]
+
+
 async def test_a_request_given_another_moderator_is_told_to_them(cast: Cast) -> None:
     request = await cast.submit()
     await cast.told()

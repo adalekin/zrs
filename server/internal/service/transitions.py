@@ -57,10 +57,11 @@ TRANSITIONS: tuple[Transition, ...] = (
     # matching row wins, so this one stands before the plain resubmit.
     Transition(Action.RESUBMIT, Status.RETURNED, Status.ESCALATED, Party.AUTHOR, moderated_by_its_author),
     Transition(Action.RESUBMIT, Status.RETURNED, Status.NEW, Party.AUTHOR),
-    Transition(Action.CANCEL, Status.NEW, Status.REJECTED, Party.AUTHOR),
-    Transition(Action.CANCEL, Status.RETURNED, Status.REJECTED, Party.AUTHOR),
-    Transition(Action.CANCEL, Status.ESCALATED, Status.REJECTED, Party.AUTHOR),
-    # Money that has been paid cannot be called back by cancelling the request.
+    # Money that has been paid cannot be called back by cancelling the request. A recurring request
+    # returned by its payer goes through the approval again with its payments.
+    Transition(Action.CANCEL, Status.NEW, Status.REJECTED, Party.AUTHOR, without_a_payment),
+    Transition(Action.CANCEL, Status.RETURNED, Status.REJECTED, Party.AUTHOR, without_a_payment),
+    Transition(Action.CANCEL, Status.ESCALATED, Status.REJECTED, Party.AUTHOR, without_a_payment),
     Transition(Action.CANCEL, Status.APPROVED, Status.REJECTED, Party.AUTHOR, without_a_payment),
     # The moderator never gives the final approval: their approve sends the request
     # to the finance director, who alone brings it to approved.
@@ -70,6 +71,8 @@ TRANSITIONS: tuple[Transition, ...] = (
     Transition(Action.APPROVE, Status.ESCALATED, Status.APPROVED, Party.FINANCE_DIRECTOR),
     Transition(Action.RETURN, Status.ESCALATED, Status.RETURNED, Party.FINANCE_DIRECTOR),
     Transition(Action.REJECT, Status.ESCALATED, Status.REJECTED, Party.FINANCE_DIRECTOR),
+    # The payer finds what the payment lacks, and only the author may add it.
+    Transition(Action.RETURN, Status.APPROVED, Status.RETURNED, Party.PAYER),
     Transition(Action.PAY, Status.APPROVED, Status.PAID, Party.PAYER, paid_once),
     # A recurring request is approved once and paid every period, so a payment leaves it approved.
     Transition(Action.PAY, Status.APPROVED, Status.APPROVED, Party.PAYER, recurring),

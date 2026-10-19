@@ -94,6 +94,19 @@ async def test_files_of_an_approved_request_cannot_be_added_or_removed(
     assert len((await scene.author.get(scene.url)).json()["attachments"]) == 1
 
 
+async def test_the_author_attaches_an_invoice_to_a_request_its_payer_returned(world: World, scene: Scene) -> None:
+    director = await world.sign_in("director", "finance_director")
+    payer = await world.sign_in("payer", "payer")
+    await scene.moderator.post(f"{scene.url}/approve")
+    await director.post(f"{scene.url}/approve")
+    await payer.post(f"{scene.url}/return", json={"comment": "Attach the invoice"})
+
+    response = await scene.author.post(f"{scene.url}/attachments", files={"file": INVOICE})
+
+    assert response.status_code == 201
+    assert len((await payer.get(scene.url)).json()["attachments"]) == 1
+
+
 async def test_only_the_author_changes_the_files(scene: Scene) -> None:
     attachment = (await scene.author.post(f"{scene.url}/attachments", files={"file": INVOICE})).json()
 

@@ -34,6 +34,8 @@ REFERENCE_FIELDS: dict[str, tuple[ReferenceKind, bool]] = {
 }
 #: Fields that may be cleared by an update.
 NULLABLE_FIELDS = frozenset({"payment_form_id", "deadline", "payer_id", "recurrence", "payment_period"})
+#: Fields a payment fixes: a payment is in the currency of its request and counts in the periods of its recurrence.
+FIXED_BY_PAYMENT = frozenset({"recurrence", "currency"})
 
 
 class VisibleTo:
@@ -168,6 +170,12 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             for field, value in values.items():
                 if value is None and field not in NULLABLE_FIELDS:
                     raise FieldInvalid(field, "required", "The field must not be empty")
+            if request.has_payment:
+                for field in FIXED_BY_PAYMENT & values.keys():
+                    if values[field] != getattr(request, field):
+                        raise FieldInvalid(
+                            field, "fixed_by_payment", "The field cannot change once the request is paid"
+                        )
             await self._validate(actor, values, creating=False)
 
             awaited_before = await self._notifications.awaited(request, today)

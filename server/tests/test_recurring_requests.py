@@ -3,6 +3,7 @@
 import datetime
 import importlib.util
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -312,6 +313,112 @@ async def test_the_author_cancels_a_recurring_request_before_its_first_payment_o
     assert cancelled.json()["status"] == "rejected"
     assert refused.status_code == 409
     assert (await cast.read(paid))["status"] == "approved"
+
+
+# --- a recurring request returned by its payer ---
+
+
+async def returned_with_two_payments(cast: Cast) -> dict[str, Any]:
+    request = await cast.approved(recurrence="month")
+    await cast.pay(request, day(2026, 9, 9))
+    await cast.pay(request, day(2026, 10, 9))
+    response = await cast.payer.post(
+        f"/v1/requests/{request['id']}/return", json={"comment": "No invoice for November"}
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+async def test_returning_a_recurring_request_keeps_its_payments(cast: Cast) -> None:
+    request = await returned_with_two_payments(cast)
+
+    read = await cast.read(request)
+
+    assert read["status"] == "returned"
+    assert [payment["paid_on"] for payment in read["payments"]] == ["2026-10-09", "2026-09-09"]
+
+
+async def test_a_returned_recurring_request_with_payments_is_not_cancelled(cast: Cast) -> None:
+    request = await returned_with_two_payments(cast)
+    url = f"/v1/requests/{request['id']}"
+
+    while_returned = await cast.author.post(f"{url}/cancel", json={})
+    await cast.author.post(f"{url}/resubmit")
+    while_new = await cast.author.post(f"{url}/cancel", json={})
+    await cast.moderator.post(f"{url}/approve", json={})
+    while_escalated = await cast.author.post(f"{url}/cancel", json={})
+
+    assert [r.status_code for r in (while_returned, while_new, while_escalated)] == [409, 409, 409]
+    assert (await cast.read(request))["status"] == "escalated"
+
+
+async def test_a_recurring_request_approved_again_takes_the_next_payment(cast: Cast) -> None:
+    request = await returned_with_two_payments(cast)
+    url = f"/v1/requests/{request['id']}"
+    await cast.author.post(f"{url}/resubmit")
+    await cast.moderator.post(f"{url}/approve", json={})
+    await cast.director.post(f"{url}/approve", json={})
+    cast.clock.today = day(2026, 11, 9)
+
+    response = await cast.pay(request, day(2026, 11, 9))
+
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "approved"
+    assert len((await cast.read(request))["payments"]) == 3
+
+
+@pytest.mark.parametrize(
+    ("change", "named"),
+    [
+        ({"recurrence": None}, "recurrence"),
+        ({"recurrence": "quarter"}, "recurrence"),
+        ({"currency": "USD"}, "currency"),
+    ],
+)
+async def test_the_recurrence_and_currency_of_a_paid_request_are_not_changed(
+    cast: Cast, change: dict[str, Any], named: str
+) -> None:
+    request = await returned_with_two_payments(cast)
+
+    response = await cast.author.patch(f"/v1/requests/{request['id']}", json=change)
+
+    assert response.status_code == 422
+    assert field(response) == named
+    read = await cast.read(request)
+    assert (read["recurrence"], read["currency"]) == ("month", "RUB")
+
+
+async def test_the_amount_of_a_paid_request_is_changed(cast: Cast) -> None:
+    request = await returned_with_two_payments(cast)
+
+    response = await cast.author.patch(f"/v1/requests/{request['id']}", json={"amount": "1990.00"})
+
+    assert response.status_code == 200, response.text
+    read = await cast.read(request)
+    assert Decimal(read["amount"]) == Decimal(1990)
+    assert [Decimal(payment["amount"]) for payment in read["payments"]] == [Decimal(1590), Decimal(1590)]
+
+
+async def test_a_paid_request_takes_its_own_recurrence_and_currency_unchanged(cast: Cast) -> None:
+    request = await returned_with_two_payments(cast)
+
+    response = await cast.author.patch(
+        f"/v1/requests/{request['id']}", json={"recurrence": "month", "currency": "RUB", "amount": "1990.00"}
+    )
+
+    assert response.status_code == 200, response.text
+
+
+async def test_the_recurrence_and_currency_of_an_unpaid_returned_request_are_changed(cast: Cast) -> None:
+    request = await cast.approved(recurrence="month")
+    await cast.payer.post(f"/v1/requests/{request['id']}/return", json={})
+
+    response = await cast.author.patch(
+        f"/v1/requests/{request['id']}", json={"recurrence": "quarter", "currency": "USD"}
+    )
+
+    assert response.status_code == 200, response.text
+    assert (response.json()["recurrence"], response.json()["currency"]) == ("quarter", "USD")
 
 
 async def test_finishing_is_offered_only_where_it_can_be_done(cast: Cast) -> None:

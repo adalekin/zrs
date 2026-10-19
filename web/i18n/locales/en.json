@@ -46,7 +46,8 @@
     "submittedAt": "Submitted",
     "recurrence": "Recurrence",
     "paidAmount": "Amount paid",
-    "paymentPeriodHint": "a note if needed: by the 5th, from November to March"
+    "paymentPeriodHint": "a note if needed: by the 5th, from November to March",
+    "fixedByPayment": "the request has been paid: its recurrence and currency stay"
   },
   "action": {
     "approveNew": "Approve",
@@ -221,7 +222,8 @@
       "reference_item_inactive": "This value is switched off in the reference list",
       "position_out_of_range": "The list has no such place",
       "not_a_payer": "This person is not a payer",
-      "not_accepted": "This action does not take such a field"
+      "not_accepted": "This action does not take such a field",
+      "fixed_by_payment": "The request has been paid: this field stays as it is"
     },
     "code": {
       "DuplicateReferenceItem": "The list already has a value with this name",

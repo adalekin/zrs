@@ -23,6 +23,9 @@ from internal.service.telegram import Button, Keyboard
 #: The decisions of an approver, in the order of their buttons. Paying, resubmitting, cancelling
 #: and editing stay in the service.
 DECISIONS: tuple[Action, ...] = (Action.APPROVE, Action.RETURN, Action.REJECT)
+#: The statuses in which the request waits for an approver. A payer may return an approved request,
+#: but in the service only: their messages carry no buttons.
+DECIDED_IN = frozenset({Status.NEW, Status.ESCALATED})
 #: The decisions whose reason the author needs: the bot asks for it before it acts.
 ASK_REASON: frozenset[Action] = frozenset({Action.RETURN, Action.REJECT})
 
@@ -44,6 +47,8 @@ class DecisionOffer(BaseService):
 
     async def offer(self, person: Person, request: ExpenseRequest, chat_id: int) -> list[TelegramIntent]:
         """An intent for every decision the person may take on the request now."""
+        if Status(request.status) not in DECIDED_IN:
+            return []
         available = transitions.available_actions(Actor.as_last_signed_in(person), request)
         intents = [
             TelegramIntent(

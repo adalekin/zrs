@@ -40,6 +40,10 @@ type Fields = Record<keyof Payload, string>
 
 const { request } = props
 
+// A payment is in the currency of its request and counts in the periods of its recurrence:
+// once a request is paid, the server refuses to change either.
+const paid = request !== undefined && request.payments.length > 0
+
 // What the form starts from: the fields of the request under edit or, for a new
 // request, empty ones. A list with one choice adds that choice to a new request.
 const baseline: Fields = reactive(request
@@ -448,11 +452,11 @@ async function submit() {
             :aria-invalid="invalid('amount')"
             @blur="form.amount = groupAmount(form.amount)"
           />
-          <!-- One currency in the installation leaves nothing to choose. -->
+          <!-- One currency in the installation leaves nothing to choose, and a paid request keeps its own. -->
           <span
-            v-if="currencies.length === 1"
+            v-if="paid || currencies.length === 1"
             class="border-input bg-muted/50 text-muted-foreground -ml-px flex h-8 shrink-0 items-center rounded-r-lg border px-2.5 text-sm"
-          >{{ currencies[0] }}</span>
+          >{{ paid ? form.currency : currencies[0] }}</span>
           <NativeSelect
             v-else
             v-model="form.currency"
@@ -471,8 +475,20 @@ async function submit() {
         </div>
       </FormField>
 
-      <FormField id="recurrence" class="sm:col-span-3" :label="$t('field.recurrence')" :error="errors.recurrence">
-        <NativeSelect id="recurrence" v-model="form.recurrence" class="w-full" :aria-invalid="invalid('recurrence')">
+      <FormField
+        id="recurrence"
+        class="sm:col-span-3"
+        :label="$t('field.recurrence')"
+        :hint="paid ? $t('field.fixedByPayment') : undefined"
+        :error="errors.recurrence"
+      >
+        <NativeSelect
+          id="recurrence"
+          v-model="form.recurrence"
+          class="w-full"
+          :disabled="paid"
+          :aria-invalid="invalid('recurrence')"
+        >
           <NativeSelectOption value="">
             {{ $t('recurrence.once') }}
           </NativeSelectOption>
