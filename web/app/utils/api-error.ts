@@ -45,12 +45,6 @@ export function conflictStatus(error: unknown): Status | undefined {
   return statusCode === 409 && data?.code === 'StatusConflict' ? data.status : undefined
 }
 
-/** The size limit from a 413 answer to an upload. */
-export function attachmentLimit(error: unknown): number | undefined {
-  const { statusCode, data } = failure(error)
-  return statusCode === 413 ? data?.limit : undefined
-}
-
 /** The message of the server, when the answer carries one. */
 export function errorDetail(error: unknown): string | undefined {
   const { data } = failure(error)

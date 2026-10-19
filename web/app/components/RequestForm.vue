@@ -8,7 +8,7 @@ const props = defineProps<{
   autofocus?: boolean
 }>()
 const emit = defineEmits<{
-  /** `failedFiles` names the documents of a new request that did not upload. */
+  /** `failedFiles` names the documents that did not upload or could not be removed. */
   saved: [request: ExpenseRequestDetail, failedFiles: string[]]
   dismiss: []
 }>()
@@ -228,16 +228,19 @@ watch(lists, async () => {
   }
 })
 
-// --- Payment documents of a new request: uploaded right after the request is created ---
+// --- Payment documents: changed here only, applied together with the fields on save ---
 
-// The dialog keeps the chosen files while it is closed; a page reload drops them.
+// The dialog keeps the chosen files and the documents marked for removal while it is closed;
+// a page reload drops them.
 const files = defineModel<File[]>('files', { default: () => [] })
+const removed = defineModel<number[]>('removed', { default: () => [] })
+const kept = computed(() => (request?.attachments ?? []).filter(attachment => !removed.value.includes(attachment.id)))
 // --- The draft ---
 
 const typed = computed(() =>
   Object.keys(baseline).some(key => form[key as keyof Fields] !== baseline[key as keyof Fields]),
 )
-const dirty = computed(() => typed.value || files.value.length > 0)
+const dirty = computed(() => typed.value || files.value.length > 0 || removed.value.length > 0)
 defineExpose({ dirty })
 
 watch(form, () => writeDraft(typed.value ? form : null))
@@ -245,6 +248,7 @@ watch(form, () => writeDraft(typed.value ? form : null))
 function clear() {
   Object.assign(form, baseline)
   files.value = []
+  removed.value = []
   errors.value = {}
   writeDraft(null)
 }
@@ -267,8 +271,17 @@ watch(() => ({ ...form }), (now, before) => {
 
 const invalid = (field: keyof Fields) => errors.value[field] ? true : undefined
 
-async function upload(id: number): Promise<string[]> {
+/** Remove the marked documents and upload the chosen ones; the names of those that failed come back. */
+async function applyDocuments(id: number): Promise<string[]> {
   const failed: string[] = []
+  for (const attachment of (request?.attachments ?? []).filter(item => removed.value.includes(item.id))) {
+    try {
+      await api(`/requests/${id}/attachments/${attachment.id}`, { method: 'DELETE' })
+    }
+    catch {
+      failed.push(attachment.filename)
+    }
+  }
   for (const [index, file] of files.value.entries()) {
     progress.value = t('request.uploading', { done: index + 1, total: files.value.length })
     const body = new FormData()
@@ -277,8 +290,8 @@ async function upload(id: number): Promise<string[]> {
       await api<Attachment>(`/requests/${id}/attachments`, { method: 'POST', body })
     }
     catch {
-      // Whatever the reason, the request exists by now: the person is told which
-      // documents to add again on the page of the request.
+      // Whatever the reason, the fields are saved by now: the person is told which
+      // documents to change again in the edit of the request.
       failed.push(file.name)
     }
   }
@@ -303,13 +316,20 @@ async function submit() {
       const changed = Object.fromEntries(
         Object.entries(values).filter(([field, value]) => value !== initial[field as keyof Payload]),
       )
-      const saved = await api<ExpenseRequestDetail>(`/requests/${request.id}`, { method: 'PATCH', body: changed })
+      // A change of the documents alone leaves the fields as they are.
+      if (Object.keys(changed).length > 0) {
+        await api<ExpenseRequestDetail>(`/requests/${request.id}`, { method: 'PATCH', body: changed })
+      }
       writeDraft(null)
-      emit('saved', saved, [])
+      const failedFiles = await applyDocuments(request.id)
+      files.value = []
+      removed.value = []
+      const saved = await api<ExpenseRequestDetail>(`/requests/${request.id}`)
+      emit('saved', saved, failedFiles)
     }
     else {
       const created = await api<ExpenseRequestDetail>('/requests', { method: 'POST', body: values })
-      const failedFiles = await upload(created.id)
+      const failedFiles = await applyDocuments(created.id)
       clear()
       emit('saved', created, failedFiles)
     }
@@ -574,9 +594,23 @@ async function submit() {
         <Input id="deadline" v-model="form.deadline" type="date" :aria-invalid="invalid('deadline')" />
       </FormField>
 
-      <!-- The documents of an existing request are kept on its page. -->
-      <div v-if="!request" class="col-span-full grid gap-1.5">
+      <div class="col-span-full grid gap-1.5">
         <Label for="attachments">{{ $t('field.attachments') }}</Label>
+        <ul v-if="kept.length > 0" class="grid gap-1 text-sm">
+          <li v-for="attachment in kept" :key="attachment.id" class="flex items-center gap-2">
+            <span class="truncate">{{ attachment.filename }}</span>
+            <span class="text-muted-foreground shrink-0 text-xs">{{ format.fileSize(attachment.size) }}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              :aria-label="$t('request.removeFile')"
+              @click="removed.push(attachment.id)"
+            >
+              <XIcon />
+            </Button>
+          </li>
+        </ul>
         <FileDropzone id="attachments" @files="chosen => files.push(...chosen)" />
         <ul v-if="files.length > 0" class="grid gap-1 text-sm">
           <li v-for="(file, index) in files" :key="index" class="flex items-center gap-2">

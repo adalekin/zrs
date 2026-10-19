@@ -14,8 +14,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const form = useTemplateRef('form')
-// Chosen files outlive a closed dialog, like the text of the draft does.
+// Chosen files and documents marked for removal outlive a closed dialog, like the text of the draft does.
 const files = ref<File[]>([])
+const removed = ref<number[]>([])
 
 // The author edits a returned request to answer this comment, so it stays in sight.
 const returned = computed(() => {
@@ -37,11 +38,14 @@ function keepStarted(event: Event) {
 async function finish(saved: ExpenseRequestDetail, failedFiles: string[]) {
   open.value = false
   if (props.request) {
+    if (failedFiles.length > 0) {
+      toast.error(t('request.filesFailedOnEdit', { id: saved.id, files: failedFiles.join(', ') }))
+    }
     emit('saved', saved)
     return
   }
   if (failedFiles.length > 0) {
-    // The page of the request is where the documents can be added again.
+    // The page of the request opens its edit, where the documents can be added again.
     toast.error(t('request.filesFailed', { id: saved.id, files: failedFiles.join(', ') }))
     await navigateTo(`/requests/${saved.id}`)
     return
@@ -78,6 +82,7 @@ async function finish(saved: ExpenseRequestDetail, failedFiles: string[]) {
       <RequestForm
         ref="form"
         v-model:files="files"
+        v-model:removed="removed"
         :request="request"
         autofocus
         @saved="finish"

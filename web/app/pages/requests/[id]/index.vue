@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CheckIcon, PaperclipIcon, XIcon } from '@lucide/vue'
+import { CheckIcon, PaperclipIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 
 const { t, locale } = useI18n()
@@ -210,48 +210,6 @@ async function addComment() {
   }
 }
 
-// --- Payment documents ---
-
-async function upload(files: File[]) {
-  for (const file of files) {
-    const body = new FormData()
-    body.append('file', file)
-    try {
-      await api<Attachment>(`/requests/${id}/attachments`, { method: 'POST', body })
-    }
-    catch (failure) {
-      const limit = attachmentLimit(failure)
-      const current = conflictStatus(failure)
-      if (limit !== undefined) {
-        toast.error(t('request.namedFileTooLarge', { name: file.name, limit: format.fileSize(limit) }))
-      }
-      else if (current) {
-        toast.error(t('request.statusConflict', { status: t(`status.${current}`) }))
-      }
-      else {
-        showFailure(failure)
-      }
-    }
-  }
-  await reload()
-}
-
-async function removeAttachment(attachment: Attachment) {
-  try {
-    await api(`/requests/${id}/attachments/${attachment.id}`, { method: 'DELETE' })
-  }
-  catch (failure) {
-    const current = conflictStatus(failure)
-    if (current) {
-      toast.error(t('request.statusConflict', { status: t(`status.${current}`) }))
-    }
-    else {
-      showFailure(failure)
-    }
-  }
-  await reload()
-}
-
 /** The stage a journal entry brought the request to. Only the request knows who its rejection came from. */
 function stageOf(entry: JournalEntry): RequestStage {
   return entry === lastChange.value ? RequestStage.of(request.value!) : RequestStage.ofStatus(entry.status)
@@ -402,7 +360,7 @@ function stageOf(entry: JournalEntry): RequestStage {
         <h2 class="font-semibold">
           {{ $t('field.attachments') }}
         </h2>
-        <p v-if="request.attachments.length === 0 && !request.can_edit" class="text-muted-foreground text-sm">
+        <p v-if="request.attachments.length === 0" class="text-muted-foreground text-sm">
           {{ $t('request.noAttachments') }}
         </p>
         <ul v-if="request.attachments.length > 0" class="grid gap-1.5 text-sm">
@@ -414,19 +372,8 @@ function stageOf(entry: JournalEntry): RequestStage {
               download
             >{{ attachment.filename }}</a>
             <span class="text-muted-foreground shrink-0 text-xs">{{ format.fileSize(attachment.size) }}</span>
-            <Button
-              v-if="request.can_edit"
-              variant="ghost"
-              size="icon-xs"
-              :aria-label="$t('request.removeFile')"
-              @click="removeAttachment(attachment)"
-            >
-              <XIcon />
-            </Button>
           </li>
         </ul>
-        <!-- Documents are added and removed here; the edit dialog holds only the fields. -->
-        <FileDropzone v-if="request.can_edit" id="attachment" @files="upload" />
       </section>
     </div>
 
