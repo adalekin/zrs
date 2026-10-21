@@ -114,7 +114,7 @@
     "clear": "Clear",
     "open": "Open",
     "created": "Request {id} is submitted. Moderator: {moderator}",
-    "filesFailed": "Request {id} is submitted, but these files did not upload: {files}. Add them again in the edit of the request",
+    "fileTooLarge": "One of the files exceeds the limit of {limit}. The request is not submitted",
     "filesFailedOnEdit": "The changes to request {id} are saved, but these files could not be changed: {files}. Try again in the edit of the request",
     "dropFiles": "Drop files here or choose them",
     "namedFileTooLarge": "{name}: the file exceeds the limit of {limit}",

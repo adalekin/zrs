@@ -93,7 +93,7 @@ async def test_a_request_without_a_recurrence_is_paid_once(cast: Cast) -> None:
 async def test_an_unknown_recurrence_names_the_field(cast: Cast) -> None:
     body = cast.world.request_body(cast.lists, cast.moderator, recurrence="fortnight")
 
-    response = await cast.author.post("/v1/requests", json=body)
+    response = await cast.author.create_request(body)
 
     assert response.status_code == 422
     assert field(response) == "recurrence"
@@ -123,7 +123,7 @@ async def test_a_request_is_submitted_without_the_words_about_its_period(cast: C
     body = cast.world.request_body(cast.lists, cast.moderator, recurrence="month")
     del body["payment_period"]
 
-    response = await cast.author.post("/v1/requests", json=body)
+    response = await cast.author.create_request(body)
 
     assert response.status_code == 201, response.text
     assert response.json()["payment_period"] is None

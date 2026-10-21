@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { XIcon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
 
 // One form for a new request and for the edit of an existing one, shown in RequestDialog.
 const props = defineProps<{
@@ -328,15 +329,24 @@ async function submit() {
       emit('saved', saved, failedFiles)
     }
     else {
-      const created = await api<ExpenseRequestDetail>('/requests', { method: 'POST', body: values })
-      const failedFiles = await applyDocuments(created.id)
+      // The request and its documents go in one call: either all of it is saved or nothing.
+      const body = new FormData()
+      body.append('request', JSON.stringify(values))
+      for (const file of files.value) {
+        body.append('files', file)
+      }
+      const created = await api<ExpenseRequestDetail>('/requests', { method: 'POST', body })
       clear()
-      emit('saved', created, failedFiles)
+      emit('saved', created, [])
     }
   }
   catch (error) {
     const byField = fieldMessages(error)
-    if (byField) {
+    const limit = attachmentLimit(error)
+    if (limit !== undefined) {
+      toast.error(t('request.fileTooLarge', { limit: format.fileSize(limit) }))
+    }
+    else if (byField) {
       // An empty amount is a missing field, not a wrong number.
       errors.value = byField.amount && form.amount.trim() === ''
         ? { ...byField, amount: t('error.field.required') }

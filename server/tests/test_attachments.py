@@ -135,3 +135,77 @@ async def test_a_file_is_not_served_under_another_request(world: World, scene: S
     response = await scene.author.get(f"/v1/requests/{other['id']}/attachments/{attachment['id']}")
 
     assert response.status_code == 404
+
+
+async def test_a_moderator_submits_a_request_with_an_invoice_and_the_director_downloads_it(
+    world: World, storage: FakeStorage
+) -> None:
+    lists = await world.reference_lists()
+    moderator = await world.sign_in("moderator", "requester", "moderator")
+    director = await world.sign_in("director", "finance_director")
+    body = world.request_body(lists, moderator, moderator_id=None)
+
+    response = await moderator.create_request(body, files=[INVOICE])
+
+    assert response.status_code == 201, response.text
+    created = response.json()
+    assert created["status"] == "escalated"
+    assert [item["filename"] for item in created["attachments"]] == ["invoice.pdf"]
+    assert len(storage.objects) == 1
+    assert next(iter(storage.objects)).startswith(f"requests/{created['id']}/")
+    url = f"/v1/requests/{created['id']}"
+    download = await director.get(f"{url}/attachments/{created['attachments'][0]['id']}")
+    assert download.status_code == 200
+    assert download.content == INVOICE[1]
+
+
+async def test_a_requester_submits_a_request_with_two_documents(world: World, storage: FakeStorage) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author", "requester")
+    moderator = await world.sign_in("moderator", "moderator")
+    contract = ("contract.docx", b"PK contract", "application/octet-stream")
+
+    response = await author.create_request(world.request_body(lists, moderator), files=[INVOICE, contract])
+
+    assert response.status_code == 201, response.text
+    created = response.json()
+    assert created["status"] == "new"
+    assert sorted(item["filename"] for item in created["attachments"]) == ["contract.docx", "invoice.pdf"]
+    assert len(storage.objects) == 2
+
+
+async def test_a_new_request_with_a_file_over_the_limit_is_not_created(world: World, storage: FakeStorage) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author", "requester")
+    moderator = await world.sign_in("moderator", "moderator")
+    too_large = ("scan.png", b"x" * 1025, "image/png")
+
+    response = await author.create_request(world.request_body(lists, moderator), files=[INVOICE, too_large])
+
+    assert response.status_code == 413
+    assert response.json()["limit"] == 1024
+    assert storage.objects == {}
+    assert (await author.get("/v1/requests")).json()["total"] == 0
+
+
+async def test_a_new_request_with_a_missing_field_stores_none_of_its_files(world: World, storage: FakeStorage) -> None:
+    lists = await world.reference_lists()
+    author = await world.sign_in("author", "requester")
+    moderator = await world.sign_in("moderator", "moderator")
+    body = world.request_body(lists, moderator)
+    del body["situation"]
+
+    response = await author.create_request(body, files=[INVOICE])
+
+    assert response.status_code == 422
+    assert [item["loc"][-1] for item in response.json()["detail"]] == ["situation"]
+    assert storage.objects == {}
+    assert (await author.get("/v1/requests")).json()["total"] == 0
+
+
+async def test_a_new_request_whose_fields_are_not_json_is_refused(world: World) -> None:
+    author = await world.sign_in("author", "requester")
+
+    response = await author.post("/v1/requests", data={"request": "{not json"})
+
+    assert response.status_code == 422

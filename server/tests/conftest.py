@@ -1,7 +1,8 @@
 import asyncio
 import datetime
+import json
 import os
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterator, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -331,6 +332,14 @@ class Session:
     async def delete(self, url: str, **kwargs: Any) -> Response:
         return await self._client.delete(url, headers=self.headers, **kwargs)
 
+    async def create_request(self, body: dict[str, Any], files: Sequence[tuple[str, bytes, str]] = ()) -> Response:
+        """Submit a request the way the form does: the fields as the JSON part, the documents as the file parts."""
+        return await self.post(
+            "/v1/requests",
+            data={"request": json.dumps(body)},
+            files=[("files", file) for file in files],
+        )
+
 
 class World:
     """Test helper: signs people in and builds requests through the public API only."""
@@ -375,7 +384,7 @@ class World:
     async def submit(
         self, author: Session, lists: dict[str, int], moderator: Session, **overrides: Any
     ) -> dict[str, Any]:
-        response = await author.post("/v1/requests", json=self.request_body(lists, moderator, **overrides))
+        response = await author.create_request(self.request_body(lists, moderator, **overrides))
         assert response.status_code == 201, response.text
         return response.json()
 

@@ -47,4 +47,4 @@ pythonpath = ["."]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI reads dependencies and parameters from argument defaults.
-extend-immutable-calls = ["fastapi.Depends", "fastapi.Query"]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File", "fastapi.Form", "fastapi.Query"]

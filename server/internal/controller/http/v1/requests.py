@@ -1,7 +1,9 @@
 import datetime
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, Response, UploadFile, status
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 
 from internal.controller.http.deps import get_actor, get_storage, get_today
 from internal.dto.expense_request import (
@@ -72,14 +74,36 @@ async def list_requests(
     )
 
 
-@router.post("", response_model=RequestDetail, status_code=status.HTTP_201_CREATED, summary="Submit a request")
+def _request_part(
+    request: str = Form(description="The fields of the request as JSON, in the shape of RequestCreate"),
+) -> RequestCreate:
+    try:
+        return RequestCreate.model_validate_json(request)
+    except ValidationError as exc:
+        # Answered like an error in a JSON body, so a client finds the field at the end of `loc`.
+        raise RequestValidationError([{**error, "loc": ("body", *error["loc"])} for error in exc.errors()]) from exc
+
+
+@router.post(
+    "",
+    response_model=RequestDetail,
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit a request with its payment documents",
+    description=(
+        "A multipart body: the fields as the JSON part `request`, the documents as the parts `files`. "
+        "Either the request is created with all of its documents or nothing is saved; "
+        "a document over the installation limit is answered 413."
+    ),
+)
 async def create_request(
-    dto: RequestCreate,
+    dto: RequestCreate = Depends(_request_part),
+    files: list[UploadFile] = File(default=[], description="Payment documents of the request"),
     actor: Actor = Depends(get_actor),
     today: datetime.date = Depends(get_today),
     service: ExpenseRequestService = Depends(),
+    storage: AttachmentStorage = Depends(get_storage),
 ) -> RequestDetail:
-    return _detail(actor, await service.create(actor, dto, today=today), today)
+    return _detail(actor, await service.create(actor, dto, files, storage, today=today), today)
 
 
 @router.get("/{request_id}", response_model=RequestDetail, summary="A request with its journal and available actions")

@@ -30,7 +30,7 @@ async def moderator(world: World) -> Session:
 async def test_a_requester_submits_a_request(
     world: World, lists: dict[str, int], author: Session, moderator: Session
 ) -> None:
-    response = await author.post("/v1/requests", json=world.request_body(lists, moderator))
+    response = await author.create_request(world.request_body(lists, moderator))
 
     assert response.status_code == 201
     body = response.json()
@@ -50,7 +50,7 @@ async def test_a_request_without_a_required_field_names_the_field(
     body = world.request_body(lists, moderator)
     del body[field]
 
-    response = await author.post("/v1/requests", json=body)
+    response = await author.create_request(body)
 
     assert response.status_code == 422
     assert error_fields(response.json()) == [field]
@@ -63,7 +63,7 @@ async def test_a_request_without_a_required_reference_value_names_the_field(
     body = world.request_body(lists, moderator)
     del body[field]
 
-    response = await author.post("/v1/requests", json=body)
+    response = await author.create_request(body)
 
     assert response.status_code == 422
     assert error_fields(response.json()) == [field]
@@ -72,7 +72,7 @@ async def test_a_request_without_a_required_reference_value_names_the_field(
 async def test_a_blank_situation_counts_as_missing(
     world: World, lists: dict[str, int], author: Session, moderator: Session
 ) -> None:
-    response = await author.post("/v1/requests", json=world.request_body(lists, moderator, situation="   "))
+    response = await author.create_request(world.request_body(lists, moderator, situation="   "))
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["situation"]
@@ -82,7 +82,7 @@ async def test_a_blank_situation_counts_as_missing(
 async def test_an_amount_that_is_not_positive_or_too_precise_names_the_field(
     world: World, lists: dict[str, int], author: Session, moderator: Session, amount: str
 ) -> None:
-    response = await author.post("/v1/requests", json=world.request_body(lists, moderator, amount=amount))
+    response = await author.create_request(world.request_body(lists, moderator, amount=amount))
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["amount"]
@@ -91,7 +91,7 @@ async def test_an_amount_that_is_not_positive_or_too_precise_names_the_field(
 async def test_a_currency_outside_the_installation_list_names_the_field(
     world: World, lists: dict[str, int], author: Session, moderator: Session
 ) -> None:
-    response = await author.post("/v1/requests", json=world.request_body(lists, moderator, currency="EUR"))
+    response = await author.create_request(world.request_body(lists, moderator, currency="EUR"))
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["currency"]
@@ -105,7 +105,7 @@ async def test_a_switched_off_operation_type_names_the_field(
     await director.patch(f"/v1/reference-items/{lists['operation_type_id']}", json={"is_active": False})
     await world.reference_item("operation_type", "Hosting")
 
-    response = await author.post("/v1/requests", json=world.request_body(lists, moderator))
+    response = await author.create_request(world.request_body(lists, moderator))
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["operation_type_id"]
@@ -116,7 +116,7 @@ async def test_a_value_from_another_reference_list_names_the_field(
 ) -> None:
     body = world.request_body(lists, moderator, priority_id=lists["operation_type_id"])
 
-    response = await author.post("/v1/requests", json=body)
+    response = await author.create_request(body)
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["priority_id"]
@@ -127,7 +127,7 @@ async def test_a_person_without_the_requester_role_cannot_submit(
 ) -> None:
     other_moderator = await world.sign_in("other-moderator", "moderator")
 
-    response = await moderator.post("/v1/requests", json=world.request_body(lists, other_moderator))
+    response = await moderator.create_request(world.request_body(lists, other_moderator))
 
     assert response.status_code == 403
 
@@ -142,7 +142,7 @@ async def test_submitting_while_the_priority_list_is_empty_names_the_list(
     body = world.request_body({"operation_type_id": operation_type["id"], "priority_id": 0}, moderator)
     del body["priority_id"]
 
-    response = await author.post("/v1/requests", json=body)
+    response = await author.create_request(body)
 
     assert response.status_code == 422
     error = response.json()["detail"][0]
@@ -159,7 +159,7 @@ async def test_an_empty_payment_form_list_does_not_block_a_request_without_a_pay
         "priority_id": (await world.reference_item("priority", "Normal"))["id"],
     }
 
-    response = await author.post("/v1/requests", json=world.request_body(lists, moderator))
+    response = await author.create_request(world.request_body(lists, moderator))
 
     assert response.status_code == 201
 
@@ -170,7 +170,7 @@ async def test_an_empty_payment_form_list_does_not_block_a_request_without_a_pay
 async def test_a_requester_cannot_choose_themselves_as_the_moderator(
     world: World, lists: dict[str, int], author: Session
 ) -> None:
-    response = await author.post("/v1/requests", json=world.request_body(lists, author))
+    response = await author.create_request(world.request_body(lists, author))
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["moderator_id"]
@@ -181,7 +181,7 @@ async def test_a_person_without_the_moderator_role_cannot_be_chosen(
 ) -> None:
     payer = await world.sign_in("payer", "payer")
 
-    response = await author.post("/v1/requests", json=world.request_body(lists, payer))
+    response = await author.create_request(world.request_body(lists, payer))
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["moderator_id"]
@@ -192,7 +192,7 @@ async def test_a_person_who_never_signed_in_cannot_be_chosen(
 ) -> None:
     body = world.request_body(lists, moderator, moderator_id=moderator.id + 1000)
 
-    response = await author.post("/v1/requests", json=body)
+    response = await author.create_request(body)
 
     assert response.status_code == 422
     assert error_fields(response.json()) == ["moderator_id"]
@@ -211,7 +211,7 @@ async def test_a_request_keeps_a_currency_that_left_the_installation_list(
 
     assert (await author.get(f"/v1/requests/{request['id']}")).json()["currency"] == "USD"
     assert (await author.get("/v1/me")).json()["currencies"] == ["RUB"]
-    refused = await author.post("/v1/requests", json=world.request_body(lists, moderator, currency="USD"))
+    refused = await author.create_request(world.request_body(lists, moderator, currency="USD"))
     assert error_fields(refused.json()) == ["currency"]
 
 
@@ -324,7 +324,7 @@ async def test_a_moderators_own_request_is_moderated_by_its_author(world: World,
     body = world.request_body(lists, author)
     del body["moderator_id"]
 
-    response = await author.post("/v1/requests", json=body)
+    response = await author.create_request(body)
 
     assert response.status_code == 201, response.text
     created = response.json()
@@ -335,7 +335,7 @@ async def test_a_moderators_own_request_is_moderated_by_its_author(world: World,
 async def test_a_moderator_who_names_themselves_gets_the_same(world: World, lists: dict[str, int]) -> None:
     author = await world.sign_in("author-moderator", "requester", "moderator")
 
-    response = await author.post("/v1/requests", json=world.request_body(lists, author))
+    response = await author.create_request(world.request_body(lists, author))
 
     assert response.status_code == 201, response.text
     created = response.json()
@@ -348,7 +348,7 @@ async def test_a_moderator_who_names_another_moderator_takes_the_usual_way(
 ) -> None:
     author = await world.sign_in("author-moderator", "requester", "moderator")
 
-    response = await author.post("/v1/requests", json=world.request_body(lists, moderator))
+    response = await author.create_request(world.request_body(lists, moderator))
 
     assert response.status_code == 201, response.text
     created = response.json()

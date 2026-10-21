@@ -1,5 +1,7 @@
 // Reading the error answers of the server API (server/internal/exceptions.py).
 
+import type { Status } from '../../shared/types/api'
+
 interface ApiFailure {
   statusCode?: number
   data?: {
@@ -43,6 +45,12 @@ export function errorCode(error: unknown): string | undefined {
 export function conflictStatus(error: unknown): Status | undefined {
   const { statusCode, data } = failure(error)
   return statusCode === 409 && data?.code === 'StatusConflict' ? data.status : undefined
+}
+
+/** The installation limit from a 413 answer to a document over it. */
+export function attachmentLimit(error: unknown): number | undefined {
+  const { statusCode, data } = failure(error)
+  return statusCode === 413 && data?.code === 'AttachmentTooLarge' ? data.limit : undefined
 }
 
 /** The message of the server, when the answer carries one. */

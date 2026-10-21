@@ -77,7 +77,7 @@ async def test_a_request_is_submitted_without_a_payer(cast: Cast) -> None:
 async def test_a_person_without_the_payer_role_cannot_be_named(cast: Cast) -> None:
     body = cast.world.request_body(cast.lists, cast.moderator, payer_id=cast.moderator.id)
 
-    response = await cast.author.post("/v1/requests", json=body)
+    response = await cast.author.create_request(body)
 
     assert response.status_code == 422
     assert field(response) == ("payer_id", "not_a_payer")
@@ -86,7 +86,7 @@ async def test_a_person_without_the_payer_role_cannot_be_named(cast: Cast) -> No
 async def test_a_person_who_never_signed_in_cannot_be_named(cast: Cast) -> None:
     body = cast.world.request_body(cast.lists, cast.moderator, payer_id=10**9)
 
-    response = await cast.author.post("/v1/requests", json=body)
+    response = await cast.author.create_request(body)
 
     assert response.status_code == 422
     assert field(response) == ("payer_id", "not_a_payer")

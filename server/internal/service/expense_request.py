@@ -6,8 +6,8 @@ from approck_fastapi_utils.exceptions import Forbidden, NotFound
 from approck_services.fastapi import make_service_type
 from approck_sqlalchemy_utils.mocks import get_session
 from approck_sqlalchemy_utils.transaction import atomic
-from fastapi import Depends
-from sqlalchemy import ColumnElement, func, or_, select, true
+from fastapi import Depends, UploadFile
+from sqlalchemy import ColumnElement, func, or_, select, text, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import lazyload
 
@@ -19,12 +19,14 @@ from internal.entity.expense_request import ExpenseRequest, JournalEntry, Paymen
 from internal.exceptions import FieldInvalid, StatusConflict
 from internal.service import transitions
 from internal.service.actor import Actor
+from internal.service.incoming_file import IncomingFile
 from internal.service.notices import Occasion
 from internal.service.notification import NotificationService
 from internal.service.person import PersonService
 from internal.service.queue import Queue
 from internal.service.reference_item import ReferenceItemService
 from internal.service.request_order import ORDERS
+from internal.service.storage import AttachmentStorage
 
 #: Request fields that reference a list, with the list they must come from and whether a value is required.
 REFERENCE_FIELDS: dict[str, tuple[ReferenceKind, bool]] = {
@@ -136,7 +138,16 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
 
     # --- writing ---
 
-    async def create(self, actor: Actor, dto: RequestCreate, *, today: datetime.date) -> ExpenseRequest:
+    async def create(
+        self,
+        actor: Actor,
+        dto: RequestCreate,
+        files: Sequence[UploadFile],
+        storage: AttachmentStorage,
+        *,
+        today: datetime.date,
+    ) -> ExpenseRequest:
+        """Submit a request together with its payment documents: either all of it is saved or nothing."""
         if not actor.has(Role.REQUESTER):
             raise Forbidden("Only a requester may submit a request")
 
@@ -146,12 +157,22 @@ class ExpenseRequestService(make_service_type(ExpenseRequest)):
             # to the finance director.
             values["moderator_id"] = actor.id
         await self._validate(actor, values, creating=True)
+        incoming = [await IncomingFile.read(file) for file in files]
+
+        # The number comes first: the keys of the stored documents carry it, and the
+        # transaction that writes the request makes no network calls.
+        async with atomic(self.session):
+            request_id = await self.session.scalar(
+                text("SELECT nextval(pg_get_serial_sequence('expense_request', 'id'))")
+            )
+        attachments = [await item.store(request_id, actor.id, storage) for item in incoming]
 
         async with atomic(self.session):
             status = Status.ESCALATED if values["moderator_id"] == actor.id else Status.NEW
-            request = ExpenseRequest(**values, author_id=actor.id, status=status.value)
+            request = ExpenseRequest(**values, id=request_id, author_id=actor.id, status=status.value)
             self.session.add(request)
             await self.session.flush()
+            self.session.add_all(attachments)
             self._record(request, actor, status_changed=True, payer_changed=False, comment=None)
             await self._announce(request, actor, today, awaited_before=frozenset())
 

@@ -44,12 +44,6 @@ async function finish(saved: ExpenseRequestDetail, failedFiles: string[]) {
     emit('saved', saved)
     return
   }
-  if (failedFiles.length > 0) {
-    // The page of the request opens its edit, where the documents can be added again.
-    toast.error(t('request.filesFailed', { id: saved.id, files: failedFiles.join(', ') }))
-    await navigateTo(`/requests/${saved.id}`)
-    return
-  }
   toast.success(t('request.created', { id: saved.id, moderator: saved.moderator.name }), {
     action: { label: t('request.open'), onClick: () => navigateTo(`/requests/${saved.id}`) },
   })
